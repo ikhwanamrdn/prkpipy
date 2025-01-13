@@ -1,0 +1,44 @@
+2025-01-10 08:50:05,909 - ERROR - Kesalahan saat mengambil data 10 absensi terbaru: Error fetching data: Not enough parameters for the SQL statement
+2025-01-10 08:50:05,911 - ERROR - Kesalahan saat mengambil data absensi untuk tanggal 2025-01-10: Error fetching data: Not enough parameters for the SQL statement
+2025-01-10 08:50:08,744 - ERROR - Kesalahan saat mengambil data 10 absensi terbaru: Error fetching data: Not enough parameters for the SQL statement
+2025-01-10 08:50:08,745 - ERROR - Kesalahan saat mengambil data absensi untuk tanggal 2025-01-10: Error fetching data: Not enough parameters for the SQL statement
+2025-01-10 08:51:16,006 - ERROR - Kesalahan saat mengambil data 10 absensi terbaru: Error fetching data: Not enough parameters for the SQL statement
+2025-01-10 08:51:16,011 - ERROR - Kesalahan saat mengambil data absensi untuk tanggal 2025-01-10: Error fetching data: Not enough parameters for the SQL statement
+2025-01-10 08:51:24,904 - ERROR - Kesalahan saat mengambil data 10 absensi terbaru: Error fetching data: Not enough parameters for the SQL statement
+2025-01-10 08:51:24,906 - ERROR - Kesalahan saat mengambil data absensi untuk tanggal 2025-01-10: Error fetching data: Not enough parameters for the SQL statement
+2025-01-10 08:52:46,178 - ERROR - Kesalahan saat mengambil data 10 absensi terbaru: Error fetching data: Not enough parameters for the SQL statement
+2025-01-10 08:52:46,180 - ERROR - Kesalahan saat mengambil data absensi untuk tanggal 2025-01-10: Error fetching data: Not enough parameters for the SQL statement
+2025-01-10 08:53:29,535 - ERROR - Kesalahan saat mengambil data 10 absensi terbaru: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:53:29,536 - ERROR - Kesalahan saat mengambil data absensi untuk tanggal 2025-01-10: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:53:32,077 - ERROR - Kesalahan saat mengambil data 10 absensi terbaru: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:53:32,078 - ERROR - Kesalahan saat mengambil data absensi untuk tanggal 2025-01-10: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:54:35,904 - ERROR - Kesalahan saat mengambil data 10 absensi terbaru: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:54:35,907 - ERROR - Kesalahan saat mengambil data absensi untuk tanggal 2025-01-10: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:54:39,105 - ERROR - Kesalahan saat mengambil data 10 absensi terbaru: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:54:39,107 - ERROR - Kesalahan saat mengambil data absensi untuk tanggal 2025-01-10: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:56:15,114 - ERROR - Error: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:56:15,120 - ERROR - Error: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:57:53,292 - ERROR - Error: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:57:53,298 - ERROR - Error: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:58:02,462 - ERROR - Error: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:58:02,469 - ERROR - Error: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:59:17,527 - ERROR - Kesalahan query absensi terbaru: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:59:17,533 - ERROR - Kesalahan query absensi untuk tanggal 2025-01-10: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:59:34,731 - ERROR - Kesalahan query absensi terbaru: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:59:34,739 - ERROR - Kesalahan query absensi untuk tanggal 2025-01-01: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:59:36,050 - ERROR - Kesalahan query absensi terbaru: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:59:36,057 - ERROR - Kesalahan query absensi untuk tanggal 2025-01-01: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:59:36,885 - ERROR - Kesalahan query absensi terbaru: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:59:36,894 - ERROR - Kesalahan query absensi untuk tanggal 2025-01-01: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:59:40,246 - ERROR - Kesalahan query absensi terbaru: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 08:59:40,253 - ERROR - Kesalahan query absensi untuk tanggal 2025-01-10: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 09:02:18,039 - ERROR - Kesalahan query absensi terbaru: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 09:02:18,046 - ERROR - Kesalahan query absensi untuk tanggal 2025-01-10: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 09:02:20,021 - ERROR - Kesalahan query absensi terbaru: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 09:02:20,028 - ERROR - Kesalahan query absensi untuk tanggal 2025-01-10: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 09:02:22,309 - ERROR - Kesalahan query absensi terbaru: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 09:02:22,316 - ERROR - Kesalahan query absensi untuk tanggal 2025-01-10: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 09:02:30,440 - ERROR - Kesalahan query absensi terbaru: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 09:02:30,447 - ERROR - Kesalahan query absensi untuk tanggal 2025-01-10: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 09:03:59,871 - ERROR - Kesalahan query absensi terbaru: Error mengambil data: Not enough parameters for the SQL statement
+2025-01-10 09:03:59,878 - ERROR - Kesalahan query absensi untuk tanggal 2025-01-10: Error mengambil data: Not enough parameters for the SQL statement
