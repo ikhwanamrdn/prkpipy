@@ -27,7 +27,10 @@ def login_page():
         st.subheader("Register")
         username = st.text_input("Username", key="register_username")
         password = st.text_input("Password", type="password", key="register_password")
-        role = st.selectbox("Role", ["pegawai", "PD", "PM", "DirOps"], key="register_role")
+        
+        # Added "ME" role to the registration options
+        role = st.selectbox("Role", ["pegawai", "PD", "PM", "DirOps", "ME"], key="register_role")
+        
         if st.button("Register"):
             try:
                 register_user(username, password, role)

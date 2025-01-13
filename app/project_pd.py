@@ -6,6 +6,7 @@ def project_pd_page():
     # Ensure the user is logged in and has 'PD' role
     if 'logged_in' in st.session_state and st.session_state['logged_in']:
         user_role = st.session_state.get('role', '')
+        # Allow only 'PD' to access the page
         if user_role != 'PD':
             st.warning("Anda tidak memiliki akses ke halaman Project.")
             return
@@ -47,7 +48,7 @@ def project_pd_page():
         # Check if PM is already assigned
         if current_pm != "None":
             st.warning(f"Project Manager sudah ditetapkan untuk proyek {selected_project_name}: {current_pm}")
-        
+
         # Get list of users with role 'PM'
         pm_users = get_users_by_role('PM')
         pm_name = st.selectbox("Pilih Project Manager (PM)", pm_users, index=pm_users.index(current_pm) if current_pm != "None" else 0)
