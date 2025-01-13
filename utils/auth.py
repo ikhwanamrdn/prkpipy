@@ -149,7 +149,7 @@ def get_pd_users():
         cursor.close()
         conn.close()
 
-# Fungsi untuk mendapatkan daftar pengguna berdasarkan role (misalnya 'PM' atau 'PD')
+# Fungsi untuk mendapatkan daftar pengguna berdasarkan role (misalnya 'PM', 'PD', 'user' untuk ME)
 def get_users_by_role(role):
     conn = get_connection()
     cursor = conn.cursor()
@@ -161,6 +161,21 @@ def get_users_by_role(role):
     except Error as e:
         print(f"Terjadi kesalahan saat mengambil pengguna dengan role '{role}': {e}")
         return []
+    finally:
+        cursor.close()
+        conn.close()
+
+# Fungsi untuk mendapatkan daftar pegawai biasa (non-PM dan non-PD)
+def get_regular_employees():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("SELECT name FROM users WHERE role NOT IN ('PM', 'PD')")
+        return [row[0] for row in cursor.fetchall()]  # Mengembalikan daftar nama pengguna
+    except Error as e:
+        print(f"Error fetching regular employees: {e}")
+        return []  # Jika terjadi kesalahan, kembalikan list kosong
     finally:
         cursor.close()
         conn.close()
