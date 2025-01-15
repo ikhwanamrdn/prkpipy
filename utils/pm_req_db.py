@@ -13,7 +13,7 @@ def create_pm_requests_table():
     cursor = conn.cursor()
 
     try:
-        # Periksa apakah tabel 'projects' sudah dibuat
+        # Pastikan tabel 'projects' sudah dibuat
         cursor.execute("""
             SELECT COUNT(*)
             FROM information_schema.tables
@@ -24,38 +24,39 @@ def create_pm_requests_table():
         if not projects_exists:
             raise ValueError("Tabel 'projects' belum dibuat. Pastikan tabel 'projects' sudah ada.")
 
-        # Periksa apakah tabel 'pm_requests' ada
+        # Periksa apakah tabel 'pm_requests' sudah ada
         cursor.execute("""
             SELECT COUNT(*)
             FROM information_schema.tables
             WHERE table_name = 'pm_requests'
         """)
-        table_exists = cursor.fetchone()[0]
+        pm_requests_exists = cursor.fetchone()[0]
 
-        if table_exists:
+        if pm_requests_exists:
             print("Tabel 'pm_requests' sudah ada.")
         else:
-            # Buat tabel 'pm_requests' jika belum ada
+            # Membuat tabel 'pm_requests'
             cursor.execute("""
                 CREATE TABLE pm_requests (
                     id INT AUTO_INCREMENT PRIMARY KEY,
-                    project_id VARCHAR(20) NOT NULL,
-                    pm_name VARCHAR(255) NOT NULL,
-                    pd_name VARCHAR(255) NOT NULL,
-                    status ENUM('Pending', 'Approved', 'Rejected') DEFAULT 'Pending',
-                    rejection_message TEXT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+                    project_id VARCHAR(20) NOT NULL,                   -- ID Proyek
+                    pm_name VARCHAR(255) NOT NULL,                    -- Nama PM yang diajukan
+                    pd_name VARCHAR(255) NOT NULL,                    -- Nama PD yang mengajukan
+                    status ENUM('Pending', 'Approved', 'Rejected') DEFAULT 'Pending',  -- Status permintaan
+                    rejection_message TEXT NULL,                      -- Pesan penolakan
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,   -- Waktu permintaan dibuat
+                    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE -- Relasi ke tabel projects
                 )
             """)
             conn.commit()
             print("Tabel 'pm_requests' berhasil dibuat.")
-    except Exception as e:
-        print(f"Error creating 'pm_requests' table: {e}")
+    except ValueError as ve:
+        print(f"ValueError: {ve}")
+    except mysql.connector.Error as err:
+        print(f"Error creating 'pm_requests' table: {err}")
     finally:
         cursor.close()
         conn.close()
-
 
 def submit_pm_request(project_id, pm_name, pd_name):
     conn = get_connection()

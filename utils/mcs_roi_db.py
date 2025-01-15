@@ -28,17 +28,19 @@ def create_mcs_roi_table():
         # Buat tabel 'mcs_roi' jika belum ada
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS mcs_roi (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                project_id VARCHAR(20) NOT NULL,
-                indicator VARCHAR(255) NOT NULL,
-                uom VARCHAR(50) NOT NULL,
-                target FLOAT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+                id INT AUTO_INCREMENT PRIMARY KEY,        -- ID unik untuk setiap record
+                project_id VARCHAR(20) NOT NULL,          -- ID Proyek (relasi ke projects)
+                indicator VARCHAR(255) NOT NULL,          -- Nama indikator MCS ROI
+                uom VARCHAR(50) NOT NULL,                 -- Unit of Measure (satuan)
+                target FLOAT NOT NULL,                    -- Target nilai indikator
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Waktu pembuatan
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE  -- Relasi ke tabel projects
             )
         """)
         conn.commit()
         print("Tabel 'mcs_roi' berhasil dibuat.")
+    except ValueError as ve:
+        print(f"ValueError: {ve}")
     except mysql.connector.Error as err:
         print(f"Error creating 'mcs_roi' table: {err}")
     finally:
