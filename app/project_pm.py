@@ -1,72 +1,85 @@
-import streamlit as st
+# Import standar Python
+import datetime
+
+# Import pustaka pihak ketiga
 import pandas as pd
-from utils.project_db import create_projects_table, get_connection, get_projects_by_pm, get_users_by_role, assign_me_to_project
+import streamlit as st
+
+# Import modul internal (utils)
+from utils.mcs_roi_db import (
+    save_mcs_to_database,
+    create_mcs_table
+)
+from utils.project_db import (
+    create_projects_table,
+    get_projects_by_pm
+    
+)
+
+create_mcs_table()
 
 def project_pm_page():
-    # Ensure the table 'projects' exists before proceeding
+    # Pastikan tabel 'projects' ada
     create_projects_table()
 
-    # Halaman untuk mengelola Project Manager (PM)
-    st.title("Assign Manager Engineer (ME) ke Proyek")
-    st.write("Gunakan fitur ini untuk menetapkan Manager Engineer (ME) ke dalam proyek.")
+    # Halaman untuk Project Manager (PM)
+    st.title("Dashboard Project PM")
 
-    # Mendapatkan proyek yang sudah ditugaskan kepada PM
-    pm_name = st.session_state['name']  # Ambil PM dari session state
-    projects = get_projects_by_pm(pm_name)  # Mengambil proyek yang sudah ditugaskan ke PM oleh PD
+    # Mendapatkan proyek yang ditugaskan ke PM
+    pm_name = st.session_state.get('name', 'Unknown')
+    projects = get_projects_by_pm(pm_name)
 
     if not projects:
         st.warning("Tidak ada proyek yang ditugaskan kepada Anda.")
         return
 
-    # Menampilkan proyek dalam bentuk DataFrame
-    project_data = []
-    for project in projects:
-        project_name = project[1]  # Nama proyek
-        start_month = project[3]  # Bulan mulai
-        pm_name = project[4] if project[4] else "Belum ada PM"  # Nama PM jika ada
+    # Menampilkan proyek yang tersedia
+    project_names = [project[1] for project in projects]
+    selected_project_name = st.selectbox("Pilih Proyek", project_names)
 
-        # Mendapatkan daftar Manager Engineers (MEs) yang ditugaskan pada proyek ini
-        with get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute("""
-                    SELECT u.name FROM project_me pm
-                    JOIN users u ON pm.me_id = u.id
-                    WHERE pm.project_id = %s
-                """, (project[0],))
-                me_names = [row[0] for row in cursor.fetchall()]
-
-        # Menampilkan nama-nama ME atau "Belum ada ME"
-        me_names = ', '.join(me_names) if me_names else "Belum ada ME"
-        project_data.append([project_name, start_month, pm_name, me_names])
-
-    # Membuat DataFrame dengan nama kolom yang sesuai
-    project_df = pd.DataFrame(project_data, columns=["Project Name", "Start Month", "PM", "ME"])
-
-    # Menampilkan data proyek dalam bentuk tabel yang rapi
-    st.write("Project yang ditugaskan kepada Anda:")
-    st.dataframe(project_df)  # Menampilkan proyek sebagai tabel DataFrame
-
-    # Pilih proyek yang akan dikelola
-    project_names = [project[1] for project in projects]  # Daftar nama proyek
-    selected_project_name = st.selectbox("Pilih Proyek yang akan dikelola", project_names)
-
-    # Mengambil detail proyek yang dipilih
+    # Mengambil ID proyek yang dipilih
     selected_project = next(project for project in projects if project[1] == selected_project_name)
-    selected_project_id = selected_project[0]  # ID Proyek
+    selected_project_id = selected_project[0]
 
-    # Mendapatkan daftar pengguna dengan peran 'ME' (Manager Engineer)
-    me_users = get_users_by_role('ME')  # 'ME' adalah role untuk Manager Engineer
+    st.subheader(f"MCS untuk Proyek: {selected_project_name}")
 
-    if me_users:
-        selected_me = st.selectbox("Pilih Manager Engineer (ME)", me_users)
+    # Inisialisasi session state untuk menyimpan indikator
+    if 'indicators' not in st.session_state:
+        st.session_state['indicators'] = []
 
-        # Tombol untuk menugaskan ME ke proyek
-        if st.button("Assign ME"):
+    # Form untuk menambah indikator baru
+    with st.form("add_indicator_form"):
+        st.write("Tambah Indikator Baru:")
+        indikator = st.text_input("Indikator")
+        uom = st.text_input("UOM (Unit of Measurement)")
+        target = st.number_input("Target", min_value=0.0, format="%.2f")
+
+        add_button = st.form_submit_button("Tambah Indikator")
+
+        if add_button:
+            if indikator and uom and target > 0:
+                st.session_state['indicators'].append({"indicator": indikator, "uom": uom, "target": target})
+                st.success("Indikator berhasil ditambahkan.")
+            else:
+                st.error("Semua field harus diisi dengan benar.")
+
+    # Tampilkan daftar indikator yang sudah ditambahkan
+    if st.session_state['indicators']:
+        st.subheader("Daftar Indikator")
+        indicators_df = pd.DataFrame(st.session_state['indicators'])
+        st.dataframe(indicators_df)
+
+    # Tombol submit untuk mengirim data indikator ke database
+    if st.button("Submit MCS"):
+        if st.session_state['indicators']:
             try:
-                # Menugaskan ME ke proyek
-                assign_me_to_project(selected_project_id, selected_me)
-                st.success(f"Manager Engineer {selected_me} berhasil ditugaskan ke proyek {selected_project_name}.")
+                # Simpan data indikator ke tabel mcs_roi
+                if save_mcs_to_database(selected_project_id, st.session_state['indicators']):
+                    st.success("MCS berhasil disimpan ke database.")
+                    st.session_state['indicators'] = []  # Reset indikator setelah submit
+                else:
+                    st.error("Gagal menyimpan MCS ke database.")
             except Exception as e:
-                st.error(f"Gagal menetapkan ME: {e}")
-    else:
-        st.warning("Tidak ada Manager Engineer (ME) yang tersedia.")
+                st.error(f"Terjadi kesalahan saat menyimpan MCS: {e}")
+        else:
+            st.error("Tidak ada indikator untuk disubmit.")

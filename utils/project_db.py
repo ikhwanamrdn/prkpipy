@@ -2,6 +2,8 @@ import datetime
 import streamlit as st
 import mysql.connector
 from mysql.connector import Error
+import datetime
+
 
 # Fungsi untuk menghubungkan ke database
 def get_connection():
@@ -51,72 +53,168 @@ def create_projects_table():
         cursor.close()
         conn.close()
 
-# Fungsi untuk menyimpan data project baru
-def save_project(project_name, pd_name, anggaran_mandays, start_month):
+def create_project_me_table():
     conn = get_connection()
     cursor = conn.cursor()
 
     try:
-        # Periksa apakah proyek dengan nama yang sama sudah ada
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS project_me (
+                project_id VARCHAR(10) NOT NULL,
+                me_id INT NOT NULL,
+                PRIMARY KEY (project_id, me_id),
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                FOREIGN KEY (me_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+        conn.commit()
+        print("Tabel 'project_me' berhasil dibuat atau sudah ada.")
+    except Exception as e:
+        print(f"Error creating 'project_me' table: {e}")
+    finally:
+        cursor.close()
+        conn.close()
+
+def generate_project_id(project_type):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Fetch the last project ID for the given project_type
+        cursor.execute("""
+            SELECT id FROM projects
+            WHERE project_type = %s
+            ORDER BY id DESC LIMIT 1
+        """, (project_type,))
+
+        last_project = cursor.fetchone()
+
+        if last_project:
+            # Extract the numeric part and increment it
+            last_id_number = int(last_project[0][2:])  # Remove prefix and convert to int
+            new_id_number = last_id_number + 1
+        else:
+            # Start with 1 if no project exists for the given project type
+            new_id_number = 1
+
+        # Format the new project ID with the project type prefix
+        project_id = f"{project_type[:2].upper()}{str(new_id_number).zfill(2)}"
+        return project_id
+
+    except Error as e:
+        print(f"Error generating project ID: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# Fungsi untuk menyimpan data project baru
+def save_project(project_name, pd_name, anggaran_mandays, start_date, end_date, project_type, nilai_kontrak, roi_percent):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Check if project already exists
         cursor.execute("SELECT id FROM projects WHERE name = %s", (project_name,))
         existing_project = cursor.fetchone()
 
         if existing_project:
             raise ValueError(f"Proyek dengan nama '{project_name}' sudah ada.")
 
-        # Jika proyek tidak ada, lanjutkan untuk menyimpan proyek baru
+        # Fetch the PD (Project Director) ID
         cursor.execute("SELECT id FROM users WHERE name = %s", (pd_name,))
         pd_id = cursor.fetchone()
 
         if pd_id is None:
             raise ValueError("Project Director not found")
 
+        # Determine the prefix based on project type
+        if project_type == "Pendampingan":
+            prefix = "PD"
+        elif project_type == "Semi Pendampingan":
+            prefix = "SP"
+        elif project_type == "Mentoring":
+            prefix = "MT"
+        elif project_type == "Prepetuation":
+            prefix = "PP"
+        else:
+            prefix = "XX"  # Default prefix if project type is unknown
+
+        # Get the latest project number for this type (PDXX, SPXX, etc.)
+        cursor.execute(f"SELECT MAX(CAST(SUBSTRING(id, 3) AS UNSIGNED)) FROM projects WHERE id LIKE '{prefix}%'")
+        max_number = cursor.fetchone()[0]
+
+        if max_number is None:
+            new_project_id = f"{prefix}01"  # First project of this type
+        else:
+            new_project_id = f"{prefix}{max_number + 1:02d}"  # Increment the number
+
+        # Insert the project into the database
         query = """
-        INSERT INTO projects (name, pd, anggaran_mandays, start_month, mandays_og)
-        VALUES (%s, %s, %s, %s, 0)  -- mandays_og diinisialisasi ke 0
+        INSERT INTO projects (id, name, pd, anggaran_mandays, start_date, end_date, project_type, nilai_kontrak, roi_percent, roi_idr)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
-        cursor.execute(query, (project_name, pd_id[0], anggaran_mandays, start_month))
+        roi_idr = nilai_kontrak * (roi_percent / 100)
+        cursor.execute(query, (new_project_id, project_name, pd_id[0], anggaran_mandays, start_date, end_date, project_type, nilai_kontrak, roi_percent, roi_idr))
         conn.commit()
-        print(f"Project '{project_name}' has been saved.")
+        print(f"Project '{project_name}' has been saved with ID: {new_project_id}")
     except mysql.connector.Error as err:
         print(f"Error saving project: {err}")
     except ValueError as ve:
-        print(ve)  # Ini akan ditangkap oleh project_page untuk menampilkan peringatan
-        raise ve  # Re-raise error untuk ditangani di project_page
+        print(ve)
+        raise ve
     except Exception as e:
         print(f"Error: {e}")
     finally:
         cursor.close()
         conn.close()
 
-# Fungsi untuk menghitung mandays_og berdasarkan absensi pegawai dan PM
-def calculate_mandays_og(project_id):
+
+def calculate_anggaran_mandays(project_id):
     conn = get_connection()
     cursor = conn.cursor()
 
     try:
-        # Menghitung jumlah mandays berdasarkan absensi pegawai yang berhubungan dengan proyek
+        # Ambil start_date dan anggaran_mandays dari proyek
         cursor.execute("""
-            SELECT COUNT(DISTINCT name) FROM absen
-            WHERE project_id = %s
+            SELECT start_date, anggaran_mandays FROM projects WHERE id = %s
         """, (project_id,))
-        mandays_count = cursor.fetchone()[0]
+        project_data = cursor.fetchone()
 
-        # Update kolom mandays_og di tabel projects
+        if not project_data:
+            raise ValueError(f"Proyek dengan ID {project_id} tidak ditemukan.")
+
+        start_date, anggaran_mandays = project_data
+
+        # Hitung jumlah bulan berjalan
+        current_date = datetime.date.today()
+        months_elapsed = (current_date.year - start_date.year) * 12 + (current_date.month - start_date.month) + 1
+
+        # Hitung total anggaran mandays
+        total_anggaran_mandays = anggaran_mandays * months_elapsed
+
+        # Update anggaran_mandays di database
         cursor.execute("""
             UPDATE projects
-            SET mandays_og = %s
+            SET anggaran_mandays = %s
             WHERE id = %s
-        """, (mandays_count, project_id))
+        """, (total_anggaran_mandays, project_id))
         conn.commit()
-        print(f"Mandays berjalan (mandays_og) untuk proyek {project_id} telah dihitung dan diperbarui.")
+
+        print(f"Anggaran Mandays untuk proyek {project_id} telah diperbarui menjadi: {total_anggaran_mandays}")
+        return total_anggaran_mandays
     except Error as e:
-        print(f"Error calculating mandays_og for project {project_id}: {e}")
+        print(f"Error menghitung anggaran mandays untuk proyek {project_id}: {e}")
+        return None
+    except ValueError as ve:
+        print(ve)
+        return None
     finally:
         cursor.close()
         conn.close()
 
-# Fungsi untuk mendapatkan daftar project yang ditugaskan kepada PD tertentu
+
 # Fungsi untuk mendapatkan daftar project yang ditugaskan kepada PD tertentu
 def get_projects_by_pd(pd_name):
     conn = get_connection()
@@ -124,15 +222,15 @@ def get_projects_by_pd(pd_name):
 
     try:
         cursor.execute("""
-            SELECT p.id, p.name, u.name AS pd_name, p.start_month, pm.name AS pm_name, p.mandays_og, p.anggaran_mandays
+            SELECT p.id, p.name, p.start_date, p.end_date, pm.name AS pm_name, 
+                   p.mandays_og, p.anggaran_mandays, p.project_type, 
+                   p.nilai_kontrak, p.roi_percent, p.roi_idr
             FROM projects p
-            JOIN users u ON p.pd = u.id
             LEFT JOIN users pm ON p.pm_id = pm.id
-            WHERE u.role = 'PD' AND u.name = %s
+            WHERE p.pd = (SELECT id FROM users WHERE name = %s)
         """, (pd_name,))
         result = cursor.fetchall()
 
-        # Debugging: Periksa apakah proyek ditemukan
         if result:
             print(f"Proyek ditemukan untuk PD '{pd_name}':", result)
         else:
@@ -147,41 +245,23 @@ def get_projects_by_pd(pd_name):
         cursor.close()
         conn.close()
 
-# Fungsi untuk mendapatkan daftar pengguna berdasarkan role (misalnya 'PM' atau 'PD')
-def get_users_by_role(role):
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    try:
-        cursor.execute("SELECT name FROM users WHERE role = %s", (role,))
-        return [row[0] for row in cursor.fetchall()]
-    except Error as e:
-        print(f"Error fetching users by role '{role}': {e}")
-        return []
-    finally:
-        cursor.close()
-        conn.close()
-
 # Fungsi untuk mendapatkan daftar project yang ditugaskan kepada PM tertentu
 def get_projects_by_pm(pm_name):
     conn = get_connection()
     cursor = conn.cursor()
 
     try:
+        # Ganti `p.start_month` dengan `p.start_date` atau kolom lain yang sesuai
         cursor.execute("""
-            SELECT p.id, p.name, u.name AS pd_name, p.start_month, pm.name AS pm_name, p.mandays_og, p.anggaran_mandays
+            SELECT p.id, p.name, p.pd, p.start_date, p.end_date, pm.name AS pm_name
             FROM projects p
-            JOIN users u ON p.pd = u.id
-            LEFT JOIN users pm ON p.pm_id = pm.id
+            JOIN users pm ON p.pm_id = pm.id
             WHERE pm.name = %s
         """, (pm_name,))
-        result = cursor.fetchall()
 
-        print(f"Projects found for PM {pm_name}: {result}")  # Debugging: log the result
+        return cursor.fetchall()
 
-        return result if result else []  # Kembalikan list kosong jika tidak ada proyek yang ditemukan
-
-    except Error as e:
+    except mysql.connector.Error as e:
         print(f"Error fetching projects for PM '{pm_name}': {e}")
         return []
     finally:
@@ -195,39 +275,75 @@ def get_projects_by_role(name, role):
 
     try:
         if role == "DirOps":
-            # DirOps can access all projects, including all columns (id, name, pd_name, etc.)
+            # DirOps dapat melihat semua proyek
             cursor.execute("""
-                SELECT p.id, p.name, u.name AS pd_name, p.start_month, pm.name AS pm_name, p.mandays_og, p.anggaran_mandays
+                SELECT 
+                    p.id,                 -- Project ID
+                    p.name,               -- Project Name
+                    u.name AS pd_name,    -- PD Name
+                    p.anggaran_mandays,   -- Anggaran Mandays
+                    DATE_FORMAT(p.start_date, '%Y-%m-%d') AS start_date,  -- Formatted Start Date
+                    DATE_FORMAT(p.end_date, '%Y-%m-%d') AS end_date,      -- Formatted End Date
+                    pm.name AS pm_name,   -- PM Name
+                    p.mandays_og,         -- Mandays OG
+                    p.project_type,       -- Project Type
+                    p.nilai_kontrak,      -- Nilai Kontrak
+                    p.roi_percent,        -- ROI Percent
+                    p.roi_idr             -- ROI IDR
                 FROM projects p
                 JOIN users u ON p.pd = u.id
                 LEFT JOIN users pm ON p.pm_id = pm.id
             """)
         elif role == "PM":
             cursor.execute("""
-                SELECT p.id, p.name FROM projects p
-                WHERE p.pm_id IN (SELECT id FROM users WHERE name = %s AND role = 'PM')
+                SELECT p.id, p.name 
+                FROM projects p
+                WHERE p.pm_id IN (
+                    SELECT id FROM users WHERE name = %s AND role = 'PM'
+                )
             """, (name,))
         elif role == "PD":
             cursor.execute("""
-                SELECT p.id, p.name FROM projects p
-                WHERE p.pd IN (SELECT id FROM users WHERE name = %s AND role = 'PD')
+                SELECT p.id, p.name 
+                FROM projects p
+                WHERE p.pd IN (
+                    SELECT id FROM users WHERE name = %s AND role = 'PD'
+                )
             """, (name,))
         elif role == "ME":
             cursor.execute("""
-                SELECT p.id, p.name FROM projects p
+                SELECT p.id, p.name 
+                FROM projects p
                 JOIN project_me pm ON p.id = pm.project_id
                 JOIN users u ON pm.me_id = u.id
                 WHERE u.name = %s AND u.role = 'ME'
             """, (name,))
 
+        # Return results
         return cursor.fetchall()
 
-    except Error as e:
+    except mysql.connector.Error as e:
         print(f"Error fetching projects for role '{role}': {e}")
         return []
     finally:
         cursor.close()
         conn.close()
+
+def get_users_by_role(role):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Query untuk mengambil pengguna berdasarkan peran
+        cursor.execute("SELECT name FROM users WHERE role = %s", (role,))
+        return [row[0] for row in cursor.fetchall()]
+    except Error as e:
+        print(f"Error fetching users by role '{role}': {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
 
 # Fungsi untuk mendapatkan daftar pegawai biasa (non-PM dan non-PD)
 def get_regular_employees():
@@ -302,7 +418,7 @@ def check_mandays_limit(project_id):
         conn.close()
 
 # Fungsi untuk memperbarui data proyek
-def update_project_data(project_id, project_name, pd_name, anggaran_mandays, start_month):
+def update_project_data(project_id, project_name, pd_name, anggaran_mandays, start_date, end_date):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -315,10 +431,10 @@ def update_project_data(project_id, project_name, pd_name, anggaran_mandays, sta
 
         query = """
         UPDATE projects
-        SET name = %s, pd = %s, anggaran_mandays = %s, start_month = %s
+        SET name = %s, pd = %s, anggaran_mandays = %s, start_date = %s, end_date = %s
         WHERE id = %s
         """
-        cursor.execute(query, (project_name, pd_id[0], anggaran_mandays, start_month, project_id))
+        cursor.execute(query, (project_name, pd_id[0], anggaran_mandays, start_date, end_date, project_id))
         conn.commit()
         print(f"Project '{project_name}' has been updated.")
     except mysql.connector.Error as err:
@@ -329,85 +445,49 @@ def update_project_data(project_id, project_name, pd_name, anggaran_mandays, sta
         cursor.close()
         conn.close()
 
-# Function to remove ME from project
-# Function to remove ME from project
-def remove_me_from_project(project_id, me_name):
+# Fungsi untuk memperbarui anggaran mandays proyek berdasarkan tanggal absen
+def update_anggaran_mandays_on_absen(project_id, absen_date):
     conn = get_connection()
     cursor = conn.cursor()
 
     try:
-        cursor.execute("SELECT id FROM users WHERE name = %s AND role = 'ME'", (me_name,))
-        me_id = cursor.fetchone()
-
-        if me_id is None:
-            raise ValueError(f"Manager Engineer '{me_name}' not found or user is not a Manager Engineer")
-
-        # Remove ME from the project
+        # Ambil tanggal mulai proyek
         cursor.execute("""
-            DELETE FROM project_me WHERE project_id = %s AND me_id = %s
-        """, (project_id, me_id[0]))
-        conn.commit()
-
-        print(f"ME {me_name} has been removed from project ID {project_id}")
-    except Error as e:
-        print(f"Error removing ME from project: {e}")
-    except ValueError as ve:
-        print(ve)
-    finally:
-        cursor.close()
-        conn.close()
-
-# Function to assign ME to a project
-def assign_me_to_project(project_id, me_name):
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    try:
-        cursor.execute("SELECT id FROM users WHERE name = %s AND role = 'ME'", (me_name,))
-        me_id = cursor.fetchone()
-
-        if me_id is None:
-            raise ValueError(f"Manager Engineer '{me_name}' not found or user is not a Manager Engineer")
-
-        # Check if ME is already assigned to the project
-        cursor.execute("""
-            SELECT 1 FROM project_me WHERE project_id = %s AND me_id = %s
-        """, (project_id, me_id[0]))
-        if cursor.fetchone():
-            raise ValueError(f"ME {me_name} is already assigned to this project.")
-
-        # Insert into the project_me table to assign the ME to the project
-        cursor.execute("""
-            INSERT INTO project_me (project_id, me_id)
-            VALUES (%s, %s)
-        """, (project_id, me_id[0]))
-        conn.commit()
-
-        print(f"ME {me_name} has been assigned to project ID {project_id}")
-    except Error as e:
-        print(f"Error assigning ME to project: {e}")
-    except ValueError as ve:
-        print(ve)
-    finally:
-        cursor.close()
-        conn.close()
-
-# Function to get the list of MEs assigned to a project
-def get_assigned_mes(project_id):
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    try:
-        cursor.execute("""
-            SELECT u.name FROM users u
-            JOIN project_me pm ON u.id = pm.me_id
-            WHERE pm.project_id = %s
+            SELECT start_date, anggaran_mandays FROM projects WHERE id = %s
         """, (project_id,))
-        assigned_mes = [me[0] for me in cursor.fetchall()]
-        return assigned_mes
-    except mysql.connector.Error as e:
-        st.error(f"Error fetching assigned MEs: {e}")
-        return []
+        project_data = cursor.fetchone()
+
+        if not project_data:
+            print(f"Proyek dengan ID {project_id} tidak ditemukan.")
+            return
+
+        start_date, original_anggaran_mandays = project_data
+
+        if not start_date:
+            print(f"Tanggal mulai proyek {project_id} tidak ditemukan.")
+            return
+
+        # Hitung selisih bulan antara start_date dan absen_date
+        start_month = start_date.year * 12 + start_date.month
+        absen_month = absen_date.year * 12 + absen_date.month
+        selisih_bulan = absen_month - start_month + 1
+
+        if selisih_bulan > 0:
+            # Perbarui anggaran mandays
+            updated_anggaran_mandays = original_anggaran_mandays * selisih_bulan
+
+            cursor.execute("""
+                UPDATE projects
+                SET anggaran_mandays = %s
+                WHERE id = %s
+            """, (updated_anggaran_mandays, project_id))
+            conn.commit()
+            print(f"Anggaran Mandays proyek {project_id} telah diperbarui menjadi {updated_anggaran_mandays}.")
+        else:
+            print(f"Tidak ada perubahan anggaran mandays untuk proyek {project_id}.")
+    except Exception as e:
+        print(f"Error updating anggaran mandays: {e}")
     finally:
         cursor.close()
         conn.close()
+
