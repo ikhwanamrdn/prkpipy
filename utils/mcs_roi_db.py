@@ -1,3 +1,4 @@
+from binascii import Error
 import mysql.connector
 
 def get_connection():
@@ -8,18 +9,27 @@ def get_connection():
         database="kpix"    # Ganti dengan nama database Anda
     )
 
-def create_mcs_table():
-    """
-    Membuat tabel mcs_roi jika belum ada.
-    """
+def create_mcs_roi_table():
     conn = get_connection()
     cursor = conn.cursor()
 
     try:
+        # Periksa apakah tabel 'projects' sudah dibuat
+        cursor.execute("""
+            SELECT COUNT(*)
+            FROM information_schema.tables
+            WHERE table_name = 'projects'
+        """)
+        projects_exists = cursor.fetchone()[0]
+
+        if not projects_exists:
+            raise ValueError("Tabel 'projects' belum dibuat. Pastikan tabel 'projects' sudah ada.")
+
+        # Buat tabel 'mcs_roi' jika belum ada
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS mcs_roi (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                project_id VARCHAR(255) NOT NULL,
+                project_id VARCHAR(20) NOT NULL,
                 indicator VARCHAR(255) NOT NULL,
                 uom VARCHAR(50) NOT NULL,
                 target FLOAT NOT NULL,
@@ -28,9 +38,9 @@ def create_mcs_table():
             )
         """)
         conn.commit()
-        print("Tabel mcs_roi berhasil dibuat atau sudah ada.")
+        print("Tabel 'mcs_roi' berhasil dibuat.")
     except mysql.connector.Error as err:
-        print(f"Error saat membuat tabel mcs_roi: {err}")
+        print(f"Error creating 'mcs_roi' table: {err}")
     finally:
         cursor.close()
         conn.close()

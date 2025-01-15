@@ -8,7 +8,7 @@ import streamlit as st
 # Import modul internal (utils)
 from utils.mcs_roi_db import (
     save_mcs_to_database,
-    create_mcs_table
+    create_mcs_roi_table
 )
 from utils.project_db import (
     create_projects_table,
@@ -16,7 +16,7 @@ from utils.project_db import (
     
 )
 
-create_mcs_table()
+create_mcs_roi_table()
 
 def project_pm_page():
     # Pastikan tabel 'projects' ada

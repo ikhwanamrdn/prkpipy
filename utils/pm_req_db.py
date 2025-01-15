@@ -1,3 +1,4 @@
+from binascii import Error
 import mysql
 
 def get_connection():
@@ -12,6 +13,17 @@ def create_pm_requests_table():
     cursor = conn.cursor()
 
     try:
+        # Periksa apakah tabel 'projects' sudah dibuat
+        cursor.execute("""
+            SELECT COUNT(*)
+            FROM information_schema.tables
+            WHERE table_name = 'projects'
+        """)
+        projects_exists = cursor.fetchone()[0]
+
+        if not projects_exists:
+            raise ValueError("Tabel 'projects' belum dibuat. Pastikan tabel 'projects' sudah ada.")
+
         # Periksa apakah tabel 'pm_requests' ada
         cursor.execute("""
             SELECT COUNT(*)
@@ -27,7 +39,7 @@ def create_pm_requests_table():
             cursor.execute("""
                 CREATE TABLE pm_requests (
                     id INT AUTO_INCREMENT PRIMARY KEY,
-                    project_id VARCHAR(10) NOT NULL,
+                    project_id VARCHAR(20) NOT NULL,
                     pm_name VARCHAR(255) NOT NULL,
                     pd_name VARCHAR(255) NOT NULL,
                     status ENUM('Pending', 'Approved', 'Rejected') DEFAULT 'Pending',
@@ -43,6 +55,7 @@ def create_pm_requests_table():
     finally:
         cursor.close()
         conn.close()
+
 
 def submit_pm_request(project_id, pm_name, pd_name):
     conn = get_connection()

@@ -20,34 +20,40 @@ def create_projects_table():
     cursor = conn.cursor()
 
     try:
-        # Menambahkan kolom mandays_og dan me_id untuk menghubungkan pegawai biasa (ME) ke proyek
+        # Membuat tabel projects dengan id sebagai VARCHAR
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS projects (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                pd INT,
-                anggaran_mandays INT NOT NULL,
-                start_month INT,
-                pm_id INT,
-                mandays_og INT DEFAULT 0,  -- Kolom mandays_og untuk menghitung mandays berjalan
-                FOREIGN KEY (pd) REFERENCES users(id),
-                FOREIGN KEY (pm_id) REFERENCES users(id)
+                id VARCHAR(20) PRIMARY KEY,                 -- ID Proyek
+                name VARCHAR(255) NOT NULL,                 -- Nama Proyek
+                pd INT,                                     -- PD (Project Director)
+                anggaran_mandays INT NOT NULL,              -- Anggaran Mandays
+                start_date DATE,                            -- Tanggal Mulai
+                end_date DATE,                              -- Tanggal Selesai
+                pm_id INT,                                  -- PM (Project Manager)
+                mandays_og INT DEFAULT 0,                   -- Mandays OG
+                project_type VARCHAR(255),                 -- Tipe Proyek
+                nilai_kontrak BIGINT,                       -- Nilai Kontrak dalam IDR
+                roi_percent FLOAT,                          -- ROI (%)
+                roi_idr BIGINT,                             -- ROI dalam IDR
+                FOREIGN KEY (pd) REFERENCES users(id) ON DELETE SET NULL,  -- Relasi ke PD
+                FOREIGN KEY (pm_id) REFERENCES users(id) ON DELETE SET NULL -- Relasi ke PM
             )
         """)
-        # Creating the 'project_me' table to handle the many-to-many relationship between projects and MEs
+
+        # Membuat tabel project_me untuk relasi many-to-many antara proyek dan ME (Manager Engineer)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS project_me (
-                project_id INT,
-                me_id INT,
-                FOREIGN KEY (project_id) REFERENCES projects(id),
-                FOREIGN KEY (me_id) REFERENCES users(id),
-                PRIMARY KEY (project_id, me_id)  -- Ensure project_id and me_id are unique pairs
+                project_id VARCHAR(20) NOT NULL,            -- ID proyek
+                me_id INT NOT NULL,                         -- ID Manager Engineer (ME)
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                FOREIGN KEY (me_id) REFERENCES users(id) ON DELETE CASCADE,
+                PRIMARY KEY (project_id, me_id)             -- Kombinasi unik project_id dan me_id
             )
         """)
 
         conn.commit()
-        print("Table 'projects' and 'project_me' have been created or updated.")
-    except Error as e:
+        print("Tables 'projects' and 'project_me' have been created or updated successfully.")
+    except mysql.connector.Error as e:
         print(f"Error creating tables: {e}")
     finally:
         cursor.close()
@@ -490,4 +496,3 @@ def update_anggaran_mandays_on_absen(project_id, absen_date):
     finally:
         cursor.close()
         conn.close()
-

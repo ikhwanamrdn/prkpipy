@@ -5,18 +5,22 @@ from app.absen import absen_page
 from app.project import project_page  # DirOps project management page
 from app.project_pd import project_pd_page  # PD project management page
 from app.project_pm import project_pm_page  # PM project management page
-from utils.auth import create_users_table, get_user_role
+from utils.pm_req_db import create_pm_requests_table
 from utils.project_db import create_projects_table  # Import create_projects_table function
+from utils.mcs_roi_db import create_mcs_roi_table
+
 
 def main():
     if 'logged_in' not in st.session_state:
         st.session_state['logged_in'] = False
         st.session_state['page'] = "login"
 
-    # Ensure the projects table exists
+    # Pastikan tabel projects dibuat terlebih dahulu
     create_projects_table()
 
-    create_users_table()
+    # Lalu buat tabel yang bergantung pada tabel projects
+    create_pm_requests_table()
+    create_mcs_roi_table()
 
     # Use st.query_params to get the page (defaults to "login")
     page = st.query_params.get("page", ["login"])[0]
