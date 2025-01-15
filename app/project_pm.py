@@ -6,17 +6,18 @@ import pandas as pd
 import streamlit as st
 
 # Import modul internal (utils)
-from utils.mcs_roi_db import (
-    save_mcs_to_database,
-    create_mcs_roi_table
+from utils.mcs_req_db import (
+    create_mcs_requests_table,
+    get_mcs_requests_by_project,
+    submit_mcs_request
 )
 from utils.project_db import (
     create_projects_table,
     get_projects_by_pm
-    
 )
 
-create_mcs_roi_table()
+# Pastikan tabel mcs_requests dibuat
+create_mcs_requests_table()
 
 def project_pm_page():
     # Pastikan tabel 'projects' ada
@@ -69,17 +70,39 @@ def project_pm_page():
         indicators_df = pd.DataFrame(st.session_state['indicators'])
         st.dataframe(indicators_df)
 
-    # Tombol submit untuk mengirim data indikator ke database
-    if st.button("Submit MCS"):
+    # Tombol submit untuk mengajukan data indikator ke PD
+    if st.button("Ajukan MCS ke PD"):
         if st.session_state['indicators']:
             try:
-                # Simpan data indikator ke tabel mcs_roi
-                if save_mcs_to_database(selected_project_id, st.session_state['indicators']):
-                    st.success("MCS berhasil disimpan ke database.")
+                # Kirim data indikator ke tabel mcs_requests untuk diajukan ke PD
+                if submit_mcs_request(selected_project_id, st.session_state['indicators']):
+                    st.success("MCS berhasil diajukan ke PD.")
                     st.session_state['indicators'] = []  # Reset indikator setelah submit
                 else:
-                    st.error("Gagal menyimpan MCS ke database.")
+                    st.error("Gagal mengajukan MCS ke PD.")
             except Exception as e:
-                st.error(f"Terjadi kesalahan saat menyimpan MCS: {e}")
+                st.error(f"Terjadi kesalahan saat mengajukan MCS: {e}")
         else:
-            st.error("Tidak ada indikator untuk disubmit.")
+            st.error("Tidak ada indikator untuk diajukan.")
+
+    # Bagian untuk menampilkan status pengajuan MCS
+    st.subheader("Status Permintaan MCS")
+
+    # Ambil permintaan MCS berdasarkan proyek yang dipilih
+    mcs_requests = get_mcs_requests_by_project(selected_project_id)
+
+    if mcs_requests:
+        # Siapkan data untuk tabel
+        request_data = []
+        for mcs in mcs_requests:
+            mcs_id, indicator, uom, target, status, rejection_message, created_at, updated_at = mcs
+            request_data.append([mcs_id, indicator, uom, target, status, rejection_message, created_at, updated_at])
+
+        # Buat DataFrame untuk menampilkan permintaan
+        request_df = pd.DataFrame(request_data, columns=[
+            "Request ID", "Indicator", "UOM", "Target", "Status", "Rejection Message", "Created At", "Updated At"
+        ])
+        st.write("Riwayat Permintaan MCS Anda:")
+        st.dataframe(request_df)
+    else:
+        st.write("Tidak ada permintaan MCS yang diajukan untuk proyek ini.")

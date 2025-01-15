@@ -5,9 +5,17 @@ from utils.auth import get_users_by_role
 from utils.me_conf_db import assign_me_to_project, get_assigned_mes
 from utils.pm_req_db import create_pm_requests_table, get_pm_requests_by_pd, submit_pm_request
 from utils.project_db import get_projects_by_pd
+from utils.mcs_req_db import (
+    create_mcs_requests_table,
+    get_mcs_requests_by_project,
+    approve_mcs_request,
+    reject_mcs_request_with_message,
+)
 
-# Pastikan tabel `pm_requests` dibuat
+# Pastikan tabel `pm_requests` dan `mcs_requests` dibuat
 create_pm_requests_table()
+create_mcs_requests_table()
+
 
 def project_pd_page():
     # Pastikan pengguna sudah login dan memiliki role 'PD'
@@ -62,7 +70,7 @@ def project_pd_page():
         st.write("Project yang ditugaskan kepada Anda:")
         st.dataframe(project_df)
 
-        # Pilih proyek untuk mengelola ME dan PM
+        # Pilih proyek untuk mengelola ME, PM, dan MCS
         project_names = [project[1] for project in projects]  # Daftar nama proyek
         selected_project_name = st.selectbox("Pilih Proyek", project_names)
 
@@ -136,5 +144,49 @@ def project_pd_page():
             st.dataframe(request_df)
         else:
             st.write("Tidak ada permintaan PM yang diajukan.")
+
+        # Bagian untuk menerima dan menolak MCS
+        st.subheader("Permintaan MCS")
+
+        # Ambil permintaan MCS berdasarkan proyek yang dipilih
+        mcs_requests = get_mcs_requests_by_project(selected_project_id)
+
+        if mcs_requests:
+            for mcs in mcs_requests:
+                mcs_id, indicator, uom, target, status, rejection_message, created_at, updated_at = mcs
+
+                with st.expander(f"Indikator: {indicator} (Status: {status})"):
+                    st.write(f"**UOM**: {uom}")
+                    st.write(f"**Target**: {target}")
+                    st.write(f"**Tanggal Permintaan**: {created_at}")
+                    st.write(f"**Tanggal Pembaruan Terakhir**: {updated_at}")
+
+                    if status == "Rejected":
+                        st.warning(f"**Pesan Penolakan**: {rejection_message}")
+
+                    if status == "Pending":
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            if st.button(f"Terima (ID: {mcs_id})", key=f"approve_mcs_{mcs_id}"):
+                                try:
+                                    approve_mcs_request(mcs_id)
+                                    st.success(f"Permintaan MCS untuk indikator '{indicator}' telah diterima.")
+                                except Exception as e:
+                                    st.error(f"Gagal menerima permintaan MCS: {e}")
+
+                        with col2:
+                            rejection_message = st.text_input(f"Pesan Penolakan (ID: {mcs_id})", key=f"rejection_message_{mcs_id}")
+                            if st.button(f"Tolak (ID: {mcs_id})", key=f"reject_mcs_{mcs_id}"):
+                                try:
+                                    if not rejection_message:
+                                        st.warning("Silakan masukkan pesan penolakan sebelum menolak.")
+                                    else:
+                                        reject_mcs_request_with_message(mcs_id, rejection_message)
+                                        st.warning(f"Permintaan MCS untuk indikator '{indicator}' telah ditolak.")
+                                except Exception as e:
+                                    st.error(f"Gagal menolak permintaan MCS: {e}")
+        else:
+            st.write("Tidak ada permintaan MCS yang diajukan untuk proyek ini.")
     else:
         st.write("Tidak ada proyek yang ditugaskan kepada Anda saat ini.")
