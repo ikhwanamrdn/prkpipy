@@ -10,6 +10,7 @@ from utils.mcs_req_db import (
     get_mcs_requests_by_project,
     approve_mcs_request,
     reject_mcs_request_with_message,
+    save_approved_mcs_to_roi
 )
 
 # Pastikan tabel `pm_requests` dan `mcs_requests` dibuat
@@ -153,27 +154,47 @@ def project_pd_page():
 
         if mcs_requests:
             for mcs in mcs_requests:
-                mcs_id, indicator, uom, target, status, rejection_message, created_at, updated_at = mcs
+                (
+                    mcs_id, indicator, uom,
+                    level_1, level_2, level_3, level_4, level_5,
+                    level_6, level_7, level_8, level_9, level_10,
+                    status, rejection_message, created_at, updated_at
+                ) = mcs
 
                 with st.expander(f"Indikator: {indicator} (Status: {status})"):
                     st.write(f"**UOM**: {uom}")
-                    st.write(f"**Target**: {target}")
+                    st.write(f"**Level 1-10**:")
+                    st.write(f"1: {level_1}, 2: {level_2}, 3: {level_3}, 4: {level_4}, 5: {level_5}")
+                    st.write(f"6: {level_6}, 7: {level_7}, 8: {level_8}, 9: {level_9}, 10: {level_10}")
                     st.write(f"**Tanggal Permintaan**: {created_at}")
-                    st.write(f"**Tanggal Pembaruan Terakhir**: {updated_at}")
-
-                    if status == "Rejected":
-                        st.warning(f"**Pesan Penolakan**: {rejection_message}")
+                    st.write(f"**Tanggal Pembaruan Terakhir**: {updated_at if updated_at else 'Belum ada'}")
 
                     if status == "Pending":
                         col1, col2 = st.columns(2)
 
                         with col1:
                             if st.button(f"Terima (ID: {mcs_id})", key=f"approve_mcs_{mcs_id}"):
+                                # Siapkan data level untuk dikirim
+                                levels = {
+                                    "level_1": level_1,
+                                    "level_2": level_2,
+                                    "level_3": level_3,
+                                    "level_4": level_4,
+                                    "level_5": level_5,
+                                    "level_6": level_6,
+                                    "level_7": level_7,
+                                    "level_8": level_8,
+                                    "level_9": level_9,
+                                    "level_10": level_10,
+                                }
                                 try:
-                                    approve_mcs_request(mcs_id)
-                                    st.success(f"Permintaan MCS untuk indikator '{indicator}' telah diterima.")
+                                    if approve_mcs_request(mcs_id, levels):  # Kirim parameter levels
+                                        st.success(f"Permintaan MCS untuk indikator '{indicator}' telah diterima dan disimpan.")
+                                    else:
+                                        st.error(f"Gagal menyimpan MCS untuk indikator '{indicator}'.")
                                 except Exception as e:
                                     st.error(f"Gagal menerima permintaan MCS: {e}")
+
 
                         with col2:
                             rejection_message = st.text_input(f"Pesan Penolakan (ID: {mcs_id})", key=f"rejection_message_{mcs_id}")

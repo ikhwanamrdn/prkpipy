@@ -32,13 +32,24 @@ def create_mcs_roi_table():
                 project_id VARCHAR(20) NOT NULL,          -- ID Proyek (relasi ke projects)
                 indicator VARCHAR(255) NOT NULL,          -- Nama indikator MCS ROI
                 uom VARCHAR(50) NOT NULL,                 -- Unit of Measure (satuan)
-                target FLOAT NOT NULL,                    -- Target nilai indikator
+                level_1 FLOAT NOT NULL DEFAULT 0,         -- Nilai level 1
+                level_2 FLOAT NOT NULL DEFAULT 0,         -- Nilai level 2
+                level_3 FLOAT NOT NULL DEFAULT 0,         -- Nilai level 3
+                level_4 FLOAT NOT NULL DEFAULT 0,         -- Nilai level 4
+                level_5 FLOAT NOT NULL DEFAULT 0,         -- Nilai level 5
+                level_6 FLOAT NOT NULL DEFAULT 0,         -- Nilai level 6
+                level_7 FLOAT NOT NULL DEFAULT 0,         -- Nilai level 7
+                level_8 FLOAT NOT NULL DEFAULT 0,         -- Nilai level 8
+                level_9 FLOAT NOT NULL DEFAULT 0,         -- Nilai level 9
+                level_10 FLOAT NOT NULL DEFAULT 0,        -- Nilai level 10
+                progress FLOAT NOT NULL DEFAULT 0,        -- Progress pencapaian (0-100%)
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Waktu pembuatan
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- Waktu pembaruan
                 FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE  -- Relasi ke tabel projects
             )
         """)
         conn.commit()
-        print("Tabel 'mcs_roi' berhasil dibuat.")
+        print("Tabel 'mcs_roi' berhasil dibuat atau diperbarui.")
     except ValueError as ve:
         print(f"ValueError: {ve}")
     except mysql.connector.Error as err:
@@ -46,6 +57,7 @@ def create_mcs_roi_table():
     finally:
         cursor.close()
         conn.close()
+
 
 def save_mcs_to_database(project_id, indicators):
     """
