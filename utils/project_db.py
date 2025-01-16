@@ -481,3 +481,49 @@ def update_anggaran_mandays_on_absen(project_id, absen_date):
     finally:
         cursor.close()
         conn.close()
+
+def calculate_mandays_og(project_id):
+    """
+    Menghitung mandays_og untuk proyek berdasarkan absen dengan status Check Out.
+    
+    Args:
+        project_id (str): ID proyek yang ingin dihitung mandays_og-nya.
+    
+    Returns:
+        int: Jumlah mandays yang sudah berjalan (mandays_og).
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Query untuk menghitung jumlah absen dengan Check Out berdasarkan project_id
+        query = """
+            SELECT COUNT(*) 
+            FROM absen 
+            WHERE project_id = %s AND check_out IS NOT NULL
+        """
+        cursor.execute(query, (project_id,))
+        mandays_og = cursor.fetchone()[0]
+
+        # Validasi apakah hasil query valid
+        if mandays_og is None:
+            print(f"Tidak ada data absen untuk proyek {project_id}.")
+            mandays_og = 0
+
+        # Update nilai mandays_og di tabel projects
+        update_query = """
+            UPDATE projects 
+            SET mandays_og = %s 
+            WHERE id = %s
+        """
+        cursor.execute(update_query, (mandays_og, project_id))
+        conn.commit()
+
+        print(f"Mandays OG untuk proyek {project_id} berhasil diperbarui: {mandays_og}")
+        return mandays_og
+    except mysql.connector.Error as e:
+        print(f"Error calculating mandays_og for project {project_id}: {e}")
+        return 0
+    finally:
+        cursor.close()
+        conn.close()

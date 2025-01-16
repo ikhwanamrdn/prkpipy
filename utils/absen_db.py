@@ -1,6 +1,8 @@
 import mysql.connector
 import datetime
 
+from utils.project_db import calculate_mandays_og
+
 # Fungsi untuk menghubungkan ke database
 def get_connection():
     return mysql.connector.connect(
@@ -16,7 +18,6 @@ def create_absen_table():
     cursor = conn.cursor()
 
     try:
-        # Query untuk membuat tabel absen jika belum ada
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS absen (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -26,7 +27,7 @@ def create_absen_table():
                 check_in TIME,
                 check_out TIME,
                 date DATE NOT NULL,
-                UNIQUE (name, date, project_id)  -- Hanya bisa absen sekali per proyek per hari
+                UNIQUE (name, date, project_id)  -- Mencegah duplikasi absen untuk proyek tertentu dalam satu hari
             )
         """)
         conn.commit()
@@ -44,17 +45,13 @@ def get_last_session_id(name, selected_date, project_id):
 
     try:
         query = """
-            SELECT session_id FROM absen 
+            SELECT session_id FROM absen
             WHERE name = %s AND date = %s AND project_id = %s
             ORDER BY session_id DESC LIMIT 1
         """
         cursor.execute(query, (name, selected_date, project_id))
         result = cursor.fetchone()
-        
-        if result:
-            return result[0]
-        else:
-            return None  # Jika tidak ada session sebelumnya
+        return result[0] if result else None
     except mysql.connector.Error as err:
         print(f"Terjadi kesalahan saat mengambil session_id terakhir: {err}")
         return None
@@ -64,9 +61,9 @@ def get_last_session_id(name, selected_date, project_id):
 
 # Fungsi untuk memeriksa apakah sudah ada absen untuk nama, tanggal, dan proyek tertentu
 def is_absen_exists(name, date, project_id):
-    from utils.project_db import calculate_mandays_og  # Lazy import
     conn = get_connection()
     cursor = conn.cursor()
+
     try:
         query = """
             SELECT 1 FROM absen WHERE name = %s AND date = %s AND project_id = %s
@@ -90,16 +87,19 @@ def save_check_in(name, selected_date, project_id):
     cursor = conn.cursor()
 
     try:
-        # Menyimpan data check-in
-        current_time = datetime.datetime.now().time()  # Menggunakan waktu saat ini
+        current_time = datetime.datetime.now().time()
+        # Jika session_id sudah ada, tambahkan 1, jika tidak, mulai dari 1
+        last_session_id = get_last_session_id(name, selected_date, project_id)
+        new_session_id = last_session_id + 1 if last_session_id else 1
+
         query = """
             INSERT INTO absen (name, session_id, check_in, date, project_id)
             VALUES (%s, %s, %s, %s, %s)
         """
-        cursor.execute(query, (name, 1, current_time, selected_date, project_id))  # Misalnya session_id default = 1
+        cursor.execute(query, (name, new_session_id, current_time, selected_date, project_id))
         conn.commit()
 
-        print(f"Check In berhasil untuk {name} pada tanggal {selected_date}.")
+        print(f"Check In berhasil untuk {name} pada tanggal {selected_date} dengan session ID {new_session_id}.")
     except Exception as e:
         print(f"Error saving check-in: {e}")
     finally:
@@ -117,16 +117,22 @@ def save_check_out(name, selected_date, project_id):
 
     try:
         # Menyimpan data check-out
-        current_time = datetime.datetime.now().time()  # Menggunakan waktu saat ini
+        current_time = datetime.datetime.now().time()
         query = """
             UPDATE absen
             SET check_out = %s
-            WHERE name = %s AND date = %s AND project_id = %s
+            WHERE name = %s AND date = %s AND project_id = %s AND check_out IS NULL
         """
         cursor.execute(query, (current_time, name, selected_date, project_id))
         conn.commit()
 
-        print(f"Check Out berhasil untuk {name} pada tanggal {selected_date}.")
+        if cursor.rowcount > 0:
+            print(f"Check Out berhasil untuk {name} pada tanggal {selected_date}.")
+            # Hitung ulang mandays_og untuk proyek ini
+            mandays_og = calculate_mandays_og(project_id)
+            print(f"Mandays OG setelah Check Out: {mandays_og}")
+        else:
+            print(f"Check Out gagal: Anda mungkin sudah check-out sebelumnya.")
     except Exception as e:
         print(f"Error saving check-out: {e}")
     finally:
