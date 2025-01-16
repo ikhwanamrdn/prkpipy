@@ -3,10 +3,11 @@ import mysql.connector
 # Fungsi untuk menghubungkan ke database
 def get_connection():
     return mysql.connector.connect(
-        host="localhost",  # Ganti dengan host MySQL Anda
-        user="root",       # Ganti dengan user MySQL Anda
-        password="",  # Ganti dengan password MySQL Anda
-        database="kpix"    # Ganti dengan nama database Anda
+        host="localhost",
+        port= 3308,
+        user="root",
+        password="",  # Sesuaikan password MySQL Anda
+        database="kpix"
     )
 
 # Fungsi untuk membuat tabel absen (jika belum ada)
