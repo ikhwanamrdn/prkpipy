@@ -103,7 +103,7 @@ def project_page():
         end_date = st.date_input("Pilih Tanggal Selesai")
         project_type = st.selectbox("Pilih Jenis Proyek", ["Pendampingan", "Semi Pendampingan", "Mentoring", "Prepetuation"])
         nilai_kontrak = st.number_input("Nilai Kontrak (IDR)", min_value=1)
-        roi_percent = st.number_input("ROI (%)", min_value=100.0, step=0.1)
+        roi_percent = st.number_input("ROI (%)", min_value=150.0, step=0.1)
 
         if roi_percent < 100:
             st.error("ROI (%) harus lebih dari atau sama dengan 100.")

@@ -15,6 +15,7 @@ from utils.mcs_req_db import (
     reject_mcs_request_with_message,
     save_to_mcs_roi,
     get_approved_mcs_by_project,
+    update_mcs_request_status,
 )
 
 # Pastikan tabel `pm_requests` dan `mcs_requests` dibuat
@@ -101,12 +102,8 @@ def project_pd_page():
         # Bagian untuk menerima dan menolak MCS
         st.subheader("Permintaan MCS")
 
-        # Ambil permintaan MCS berdasarkan proyek yang dipilih
-        mcs_requests = get_mcs_requests_by_project(selected_project_id)
-
-        # Simpan status pengolahan permintaan di session_state
-        if "processed_requests" not in st.session_state:
-            st.session_state["processed_requests"] = {}
+        # Ambil permintaan MCS berdasarkan proyek yang dipilih, hanya status Pending yang ditampilkan
+        mcs_requests = [mcs for mcs in get_mcs_requests_by_project(selected_project_id) if mcs[4] == "Pending"]
 
         if mcs_requests:
             for mcs in mcs_requests:
@@ -121,55 +118,45 @@ def project_pd_page():
                     updated_at,
                 ) = mcs
 
-                if st.session_state["processed_requests"].get(mcs_id):
-                    continue  # Jangan tampilkan jika sudah diproses
-
                 with st.expander(f"Indikator: {indicator} (Status: {status})"):
                     st.write(f"**UOM**: {uom}")
                     st.write(f"**Target**: {target}")
                     st.write(f"**Tanggal Permintaan**: {created_at}")
-                    st.write(
-                        f"**Tanggal Pembaruan Terakhir**: {updated_at if updated_at else 'Belum ada'}"
-                    )
+                    st.write(f"**Tanggal Pembaruan Terakhir**: {updated_at if updated_at else 'Belum ada'}")
 
                     col1, col2 = st.columns(2)
 
+                    # Tombol untuk menyetujui permintaan MCS
                     with col1:
                         if st.button(f"Terima (ID: {mcs_id})", key=f"approve_mcs_{mcs_id}"):
                             try:
+                                # Simpan ke ROI dan ubah status menjadi Approved
                                 if save_to_mcs_roi(selected_project_id, indicator, uom, target):
-                                    st.session_state["processed_requests"][mcs_id] = True
-                                    st.success(
-                                        f"Permintaan MCS untuk indikator '{indicator}' berhasil diterima dan disimpan ke ROI."
-                                    )
+                                    update_mcs_request_status(mcs_id, "Approved")
+                                    st.session_state["processed_requests"][mcs_id] = True  # Tandai sebagai diproses
+                                    st.success(f"Permintaan MCS untuk indikator '{indicator}' berhasil diterima.")
                                 else:
-                                    st.error(
-                                        f"Gagal menyimpan MCS untuk indikator '{indicator}' ke ROI."
-                                    )
+                                    st.error(f"Gagal menyimpan MCS untuk indikator '{indicator}'.")
                             except Exception as e:
                                 st.error(f"Gagal menerima permintaan MCS: {e}")
+
+                    # Tombol untuk menolak permintaan MCS
                     with col2:
-                        rejection_message = st.text_input(
-                            f"Pesan Penolakan (ID: {mcs_id})", key=f"rejection_message_{mcs_id}"
-                        )
+                        rejection_message = st.text_input(f"Pesan Penolakan (ID: {mcs_id})", key=f"rejection_message_{mcs_id}")
                         if st.button(f"Tolak (ID: {mcs_id})", key=f"reject_mcs_{mcs_id}"):
                             try:
                                 if not rejection_message:
-                                    st.warning(
-                                        "Silakan masukkan pesan penolakan sebelum menolak."
-                                    )
+                                    st.warning("Silakan masukkan pesan penolakan sebelum menolak.")
                                 else:
-                                    reject_mcs_request_with_message(
-                                        mcs_id, rejection_message
-                                    )
-                                    st.session_state["processed_requests"][mcs_id] = True
-                                    st.warning(
-                                        f"Permintaan MCS untuk indikator '{indicator}' telah ditolak."
-                                    )
+                                    reject_mcs_request_with_message(mcs_id, rejection_message)
+                                    update_mcs_request_status(mcs_id, "Rejected")  # Perbarui status menjadi Rejected
+                                    st.session_state["processed_requests"][mcs_id] = True  # Tandai sebagai diproses
+                                    st.success(f"Permintaan MCS untuk indikator '{indicator}' telah ditolak.")
                             except Exception as e:
                                 st.error(f"Gagal menolak permintaan MCS: {e}")
         else:
-            st.write("Tidak ada permintaan MCS yang diajukan untuk proyek ini.")
+            st.write("Tidak ada permintaan MCS dengan status 'Pending' untuk proyek ini.")
+
 
         # Bagian untuk menampilkan riwayat MCS yang disetujui
         st.subheader("Riwayat MCS Approval")
@@ -182,8 +169,8 @@ def project_pd_page():
                 (
                     mcs_id,
                     indicator,
-                    uom,
                     target,
+                    uom,
                     created_at,
                     updated_at,
                 ) = mcs
@@ -192,8 +179,8 @@ def project_pd_page():
                     [
                         mcs_id,
                         indicator,
-                        uom,
                         target,
+                        uom,
                         created_at,
                         updated_at,
                     ]

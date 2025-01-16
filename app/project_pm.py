@@ -200,9 +200,10 @@ def project_pm_page():
 
     # Ambil data MCS yang statusnya "On Going"
     ongoing_mcs = get_mcs_roi_by_status(selected_project_id, "On Going")
+    achieved_mcs = get_mcs_roi_by_status(selected_project_id, "Achieved")  # Ambil data MCS yang statusnya 'Achieved'
 
+    # Tampilkan MCS dengan status "On Going"
     if ongoing_mcs:
-        # Tampilkan data On Going
         ongoing_data = []
         for mcs in ongoing_mcs:
             (
@@ -269,3 +270,44 @@ def project_pm_page():
                         st.error(f"Terjadi kesalahan saat mengubah status MCS: {e}")
     else:
         st.write("Tidak ada MCS dengan status 'On Going'.")
+
+    # Tampilkan MCS dengan status "Achieved"
+    if achieved_mcs:
+        achieved_data = []
+        for mcs in achieved_mcs:
+            (
+                mcs_id,
+                indicator,
+                target,
+                uom,
+                status,
+                created_at,
+                updated_at,
+            ) = mcs
+
+            achieved_data.append(
+                [
+                    indicator,
+                    uom,
+                    target,
+                    status,
+                    created_at,
+                    updated_at,
+                ]
+            )
+
+        achieved_df = pd.DataFrame(
+            achieved_data,
+            columns=[
+                "Indicator",
+                "Target",
+                "UOM",
+                "Status",
+                "Created At",
+                "Updated At",
+            ],
+        )
+        st.write("MCS dengan Status 'Achieved':")
+        st.dataframe(achieved_df)
+    else:
+        st.write("Tidak ada MCS dengan status 'Achieved'.")

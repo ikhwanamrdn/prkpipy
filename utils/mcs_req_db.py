@@ -320,3 +320,29 @@ def save_to_mcs_roi(project_id, indicator, uom, target):
     finally:
         cursor.close()
         conn.close()
+
+def update_mcs_request_status(mcs_id, new_status):
+    """
+    Mengupdate status permintaan MCS di database.
+
+    Args:
+        mcs_id (int): ID permintaan MCS.
+        new_status (str): Status baru ('Approved' atau 'Rejected').
+
+    Returns:
+        bool: True jika berhasil, False jika gagal.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        query = "UPDATE mcs_requests SET status = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s"
+        cursor.execute(query, (new_status, mcs_id))
+        conn.commit()
+        return cursor.rowcount > 0  # Berhasil jika ada baris yang diperbarui
+    except mysql.connector.Error as e:
+        print(f"Error updating MCS request status: {e}")
+        return False
+    finally:
+        cursor.close()
+        conn.close()
