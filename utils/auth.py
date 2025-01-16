@@ -6,10 +6,11 @@ from hashlib import sha256
 def get_connection():
     try:
         conn = mysql.connector.connect(
-            host="localhost",  # Ganti dengan host MySQL Anda
-            user="root",       # Ganti dengan user MySQL Anda
-            password="",       # Ganti dengan password MySQL Anda
-            database="kpix"    # Ganti dengan nama database Anda
+             host="localhost",
+            port= 3308,
+            user="root",
+            password="",  # Sesuaikan password MySQL Anda
+            database="kpix"
         )
         if conn.is_connected():
             return conn

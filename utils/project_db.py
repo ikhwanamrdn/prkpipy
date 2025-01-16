@@ -1,16 +1,15 @@
 import mysql.connector
 from mysql.connector import Error
 
-# Fungsi untuk menghubungkan ke database
 def get_connection():
     return mysql.connector.connect(
-        host="localhost",  # Ganti dengan host MySQL Anda
-        user="root",       # Ganti dengan user MySQL Anda
-        password="",       # Ganti dengan password MySQL Anda
-        database="kpix"    # Ganti dengan nama database Anda
+        host="localhost",
+        port=3308,
+        user="root",
+        password="",
+        database="kpix"
     )
 
-# Fungsi untuk membuat tabel projects (jika belum ada)
 def create_projects_table():
     conn = get_connection()
     cursor = conn.cursor()
@@ -36,7 +35,6 @@ def create_projects_table():
         cursor.close()
         conn.close()
 
-# Fungsi untuk menyimpan data project baru
 def save_project(project_name, pd_name, anggaran_mandays, start_month):
     conn = get_connection()
     cursor = conn.cursor()
@@ -63,7 +61,6 @@ def save_project(project_name, pd_name, anggaran_mandays, start_month):
         cursor.close()
         conn.close()
 
-# Fungsi untuk mendapatkan daftar pengguna dengan role 'PD'
 def get_pd_users():
     conn = get_connection()
     cursor = conn.cursor()
@@ -78,7 +75,6 @@ def get_pd_users():
         cursor.close()
         conn.close()
 
-# Fungsi untuk mendapatkan daftar project yang ditugaskan kepada DirOps
 def get_projects_by_dirops():
     conn = get_connection()
     cursor = conn.cursor()
@@ -99,7 +95,6 @@ def get_projects_by_dirops():
         cursor.close()
         conn.close()
 
-# Fungsi untuk mendapatkan daftar project yang ditugaskan kepada PD tertentu
 def get_projects_by_pd(pd_name):
     conn = get_connection()
     cursor = conn.cursor()
@@ -120,7 +115,6 @@ def get_projects_by_pd(pd_name):
         cursor.close()
         conn.close()
 
-# Fungsi untuk mendapatkan daftar pengguna berdasarkan role (misalnya 'PM' atau 'PD')
 def get_users_by_role(role):
     conn = get_connection()
     cursor = conn.cursor()
@@ -135,7 +129,6 @@ def get_users_by_role(role):
         cursor.close()
         conn.close()
 
-# Fungsi untuk menetapkan PM ke proyek tertentu
 def assign_pm_to_project(project_id, pm_name):
     conn = get_connection()
     cursor = conn.cursor()
@@ -147,13 +140,11 @@ def assign_pm_to_project(project_id, pm_name):
         if pm_id is None:
             raise ValueError("PM not found or user is not a PM")
 
-        # Memastikan bahwa proyek belum memiliki PM
         cursor.execute("SELECT pm_id FROM projects WHERE id = %s", (project_id,))
         existing_pm = cursor.fetchone()
         if existing_pm and existing_pm[0] is not None:
             raise ValueError("This project already has a PM assigned")
 
-        # Menetapkan PM ke proyek
         query = """
         UPDATE projects
         SET pm_id = %s
@@ -166,6 +157,44 @@ def assign_pm_to_project(project_id, pm_name):
         print(f"Error assigning PM to project: {e}")
     except ValueError as ve:
         print(ve)
+    finally:
+        cursor.close()
+        conn.close()
+
+def get_project_reimbursement_total(project_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            SELECT SUM(reimbursement_amount) AS total
+            FROM budgets
+            WHERE project_id = %s
+        """, (project_id,))
+        result = cursor.fetchone()
+        return result[0] if result[0] is not None else 0
+    except Error as e:
+        print(f"Error fetching project reimbursement total: {e}")
+        return 0
+    finally:
+        cursor.close()
+        conn.close()
+
+def get_all_project_reimbursements():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            SELECT p.name, SUM(b.reimbursement_amount) AS total_reimbursement
+            FROM projects p
+            LEFT JOIN budgets b ON p.id = b.project_id
+            GROUP BY p.id
+        """)
+        return cursor.fetchall()
+    except Error as e:
+        print(f"Error fetching all project reimbursements: {e}")
+        return []
     finally:
         cursor.close()
         conn.close()
