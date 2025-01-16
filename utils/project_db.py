@@ -335,21 +335,6 @@ def get_projects_by_role(name, role):
         cursor.close()
         conn.close()
 
-def get_users_by_role(role):
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    try:
-        # Query untuk mengambil pengguna berdasarkan peran
-        cursor.execute("SELECT name FROM users WHERE role = %s", (role,))
-        return [row[0] for row in cursor.fetchall()]
-    except Error as e:
-        print(f"Error fetching users by role '{role}': {e}")
-        return []
-    finally:
-        cursor.close()
-        conn.close()
-
 
 # Fungsi untuk mendapatkan daftar pegawai biasa (non-PM dan non-PD)
 def get_regular_employees():

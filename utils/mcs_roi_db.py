@@ -1,131 +1,103 @@
-from binascii import Error
 import mysql.connector
-
-def get_connection():
-    return mysql.connector.connect(
-        host="localhost",  # Ganti dengan host MySQL Anda
-        user="root",       # Ganti dengan user MySQL Anda
-        password="",       # Ganti dengan password MySQL Anda
-        database="kpix"    # Ganti dengan nama database Anda
-    )
+from db.connection import get_connection
 
 def create_mcs_roi_table():
+    """
+    Membuat atau memperbarui tabel `mcs_roi` untuk input baru.
+    """
     conn = get_connection()
     cursor = conn.cursor()
 
     try:
-        # Periksa apakah tabel 'projects' sudah dibuat
-        cursor.execute("""
-            SELECT COUNT(*)
-            FROM information_schema.tables
-            WHERE table_name = 'projects'
-        """)
-        projects_exists = cursor.fetchone()[0]
-
-        if not projects_exists:
-            raise ValueError("Tabel 'projects' belum dibuat. Pastikan tabel 'projects' sudah ada.")
-
-        # Buat tabel 'mcs_roi' jika belum ada
+        # Membuat tabel `mcs_roi`
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS mcs_roi (
-                id INT AUTO_INCREMENT PRIMARY KEY,        -- ID unik untuk setiap record
-                project_id VARCHAR(20) NOT NULL,          -- ID Proyek (relasi ke projects)
-                indicator VARCHAR(255) NOT NULL,          -- Nama indikator MCS ROI
-                uom VARCHAR(50) NOT NULL,                 -- Unit of Measure (satuan)
-                level_1 FLOAT NOT NULL DEFAULT 0,         -- Nilai level 1
-                level_2 FLOAT NOT NULL DEFAULT 0,         -- Nilai level 2
-                level_3 FLOAT NOT NULL DEFAULT 0,         -- Nilai level 3
-                level_4 FLOAT NOT NULL DEFAULT 0,         -- Nilai level 4
-                level_5 FLOAT NOT NULL DEFAULT 0,         -- Nilai level 5
-                level_6 FLOAT NOT NULL DEFAULT 0,         -- Nilai level 6
-                level_7 FLOAT NOT NULL DEFAULT 0,         -- Nilai level 7
-                level_8 FLOAT NOT NULL DEFAULT 0,         -- Nilai level 8
-                level_9 FLOAT NOT NULL DEFAULT 0,         -- Nilai level 9
-                level_10 FLOAT NOT NULL DEFAULT 0,        -- Nilai level 10
-                progress FLOAT NOT NULL DEFAULT 0,        -- Progress pencapaian (0-100%)
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Waktu pembuatan
+                id INT AUTO_INCREMENT PRIMARY KEY,         -- ID unik untuk setiap record
+                project_id VARCHAR(20) NOT NULL,           -- ID Proyek (relasi ke projects)
+                indicator VARCHAR(255) NOT NULL,           -- Nama indikator
+                uom VARCHAR(50) NOT NULL,                  -- Unit of Measure (satuan)
+                target FLOAT NOT NULL CHECK (target >= 0), -- Target nilai indikator (tidak boleh negatif)
+                status ENUM('On Going', 'Achieved') DEFAULT 'On Going', -- Status indikator
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Waktu pembuatan
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- Waktu pembaruan
                 FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE  -- Relasi ke tabel projects
             )
         """)
         conn.commit()
         print("Tabel 'mcs_roi' berhasil dibuat atau diperbarui.")
-    except ValueError as ve:
-        print(f"ValueError: {ve}")
     except mysql.connector.Error as err:
         print(f"Error creating 'mcs_roi' table: {err}")
     finally:
         cursor.close()
         conn.close()
 
-
-def save_mcs_to_database(project_id, indicators):
+def get_mcs_roi_by_status(project_id, status):
     """
-    Menyimpan indikator ke tabel `mcs_roi`.
-
-    :param project_id: ID proyek
-    :param indicators: List indikator (dictionary dengan kunci 'indicator', 'uom', dan 'target')
-    :return: True jika berhasil, False jika gagal
+    Mengambil data MCS ROI berdasarkan project_id dan status tertentu.
+    
+    Args:
+        project_id (str): ID proyek.
+        status (str): Status MCS yang ingin diambil ('On Going', 'Achieved').
+    
+    Returns:
+        list of tuple: Data MCS ROI yang ditemukan.
     """
     conn = get_connection()
     cursor = conn.cursor()
+
     try:
         query = """
-            INSERT INTO mcs_roi (project_id, indicator, uom, target)
-            VALUES (%s, %s, %s, %s)
+            SELECT 
+                id, indicator, uom, target, status, created_at, updated_at
+            FROM 
+                mcs_roi
+            WHERE 
+                project_id = %s AND status = %s
         """
-        for indicator in indicators:
-            cursor.execute(query, (project_id, indicator['indicator'], indicator['uom'], indicator['target']))
-        conn.commit()
-        return True
-    except mysql.connector.Error as e:
-        print(f"Error saat menyimpan data ke `mcs_roi`: {e}")
-        return False
-    finally:
-        cursor.close()
-        conn.close()
-
-def get_mcs_by_project(project_id):
-    """
-    Mendapatkan daftar MCS berdasarkan ID proyek.
-
-    :param project_id: ID proyek
-    :return: List indikator dari tabel `mcs_roi`
-    """
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    try:
-        query = """
-            SELECT id, indicator, uom, target, created_at
-            FROM mcs_roi
-            WHERE project_id = %s
-        """
-        cursor.execute(query, (project_id,))
-        return cursor.fetchall()
-    except mysql.connector.Error as e:
-        print(f"Error saat mengambil data dari `mcs_roi`: {e}")
+        cursor.execute(query, (project_id, status))
+        results = cursor.fetchall()
+        return results
+    except mysql.connector.Error as err:
+        print(f"Error fetching MCS ROI for project {project_id} with status {status}: {err}")
         return []
     finally:
         cursor.close()
         conn.close()
 
-def delete_mcs_by_id(mcs_id):
+def achieve_mcs(mcs_id):
     """
-    Menghapus MCS berdasarkan ID.
-
-    :param mcs_id: ID MCS yang akan dihapus
-    :return: True jika berhasil, False jika gagal
+    Mengubah status MCS menjadi 'Achieved' untuk indikator yang sedang berjalan.
+    
+    Args:
+        mcs_id (int): ID dari MCS ROI yang ingin diubah statusnya.
+    
+    Returns:
+        bool: True jika berhasil, False jika gagal.
     """
     conn = get_connection()
     cursor = conn.cursor()
+
     try:
-        query = "DELETE FROM mcs_roi WHERE id = %s"
+        # Perbarui status menjadi 'Achieved'
+        query = """
+            UPDATE mcs_roi
+            SET status = 'Achieved', updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s AND status = 'On Going'
+        """
         cursor.execute(query, (mcs_id,))
         conn.commit()
+
+        if cursor.rowcount == 0:
+            print(f"MCS dengan ID {mcs_id} tidak ditemukan atau statusnya sudah 'Achieved'.")
+            return False
+
+        print(f"MCS dengan ID {mcs_id} berhasil diubah menjadi 'Achieved'.")
         return True
-    except mysql.connector.Error as e:
-        print(f"Error saat menghapus data dari `mcs_roi`: {e}")
+
+    except mysql.connector.Error as err:
+        print(f"Error achieving MCS {mcs_id}: {err}")
         return False
+
     finally:
         cursor.close()
         conn.close()

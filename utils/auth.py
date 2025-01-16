@@ -151,15 +151,39 @@ def get_pd_users():
 
 # Fungsi untuk mendapatkan daftar pengguna berdasarkan role (misalnya 'PM' atau 'PD')
 def get_users_by_role(role):
+    """
+    Mengambil daftar pengguna berdasarkan peran tertentu.
+
+    Args:
+        role (str): Peran pengguna (contoh: 'ME', 'PM').
+
+    Returns:
+        list: Daftar dictionary pengguna dengan format {"id": id, "name": name}.
+    """
     conn = get_connection()
     cursor = conn.cursor()
 
     try:
-        cursor.execute("SELECT name FROM users WHERE role = %s", (role,))
-        result = cursor.fetchall()
-        return [user[0] for user in result]  # Mengembalikan list nama pengguna
-    except Error as e:
-        print(f"Terjadi kesalahan saat mengambil pengguna dengan role '{role}': {e}")
+        # Query untuk mengambil pengguna berdasarkan peran
+        query = "SELECT id, name FROM users WHERE role = %s"
+        cursor.execute(query, (role,))
+        users = cursor.fetchall()
+
+        # Validasi hasil query
+        if not users:
+            print(f"Tidak ada pengguna ditemukan untuk peran '{role}'.")
+            return []
+
+        # Filter hasil query untuk memastikan ID dan nama valid
+        valid_users = [{"id": user[0], "name": user[1]} for user in users if user[0] and user[1]]
+
+        if not valid_users:
+            print(f"Tidak ada pengguna dengan ID dan nama valid untuk peran '{role}'.")
+            return []
+
+        return valid_users
+    except mysql.connector.Error as e:
+        print(f"Error fetching users by role '{role}': {e}")
         return []
     finally:
         cursor.close()
