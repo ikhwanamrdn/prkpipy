@@ -1,23 +1,18 @@
-# Import standar Python
-import datetime
-
-# Import pustaka pihak ketiga
+# Import pustaka Python standar
 import pandas as pd
 import streamlit as st
 
 # Import modul internal (utils)
+from utils.mcs_roi_db import get_mcs_roi_by_status, achieve_mcs
 from utils.mcs_req_db import (
     create_mcs_requests_table,
-    get_approved_mcs_by_project,
     get_mcs_requests_by_project,
     submit_mcs_request,
+    edit_mcs_request,
 )
-from utils.project_db import (
-    create_projects_table,
-    get_projects_by_pm,
-)
+from utils.project_db import create_projects_table, get_projects_by_pm
 
-# Pastikan tabel mcs_requests dibuat
+# Pastikan tabel `mcs_requests` dibuat
 create_mcs_requests_table()
 
 
@@ -57,19 +52,18 @@ def project_pm_page():
         st.write("Tambah Indikator Baru:")
         indikator = st.text_input("Indikator")
         uom = st.text_input("UOM (Unit of Measurement)")
-
-        # Input untuk level (1-10)
-        st.write("Isi nilai untuk setiap level (1-10):")
-        levels = {}
-        for i in range(1, 11):
-            levels[f"level_{i}"] = st.number_input(f"Level {i}", key=f"level_{i}")
+        target = st.number_input("Target", min_value=0.0, format="%.2f")
 
         add_button = st.form_submit_button("Tambah Indikator")
 
         if add_button:
-            if indikator and uom and all(value is not None for value in levels.values()):
+            if indikator and uom and target > 0:
                 st.session_state["indicators"].append(
-                    {"indicator": indikator, "uom": uom, "levels": levels}
+                    {
+                        "indicator": indikator,
+                        "uom": uom,
+                        "target": target,
+                    }
                 )
                 st.success("Indikator berhasil ditambahkan.")
             else:
@@ -78,39 +72,30 @@ def project_pm_page():
     # Tampilkan daftar indikator yang sudah ditambahkan
     if st.session_state["indicators"]:
         st.subheader("Daftar Indikator")
-        indicators_df = pd.DataFrame(
-            [
-                {
-                    "Indicator": ind["indicator"],
-                    "UOM": ind["uom"],
-                    **ind["levels"],
-                }
-                for ind in st.session_state["indicators"]
-            ]
-        )
+        indicators_df = pd.DataFrame(st.session_state["indicators"])
         st.dataframe(indicators_df)
 
-    # Tombol submit untuk mengajukan data indikator ke PD
-    if st.button("Ajukan MCS ke PD"):
+    # Tombol submit untuk mengajukan data indikator
+    if st.button("Ajukan MCS"):
         if st.session_state["indicators"]:
             try:
-                # Kirim data indikator ke tabel mcs_requests untuk diajukan ke PD
+                # Kirim data indikator ke tabel mcs_requests
                 if submit_mcs_request(
                     selected_project_id, st.session_state["indicators"]
                 ):
-                    st.success("MCS berhasil diajukan ke PD.")
+                    st.success("MCS berhasil diajukan.")
                     st.session_state["indicators"] = []  # Reset indikator setelah submit
                 else:
-                    st.error("Gagal mengajukan MCS ke PD.")
+                    st.error("Gagal mengajukan MCS.")
             except Exception as e:
                 st.error(f"Terjadi kesalahan saat mengajukan MCS: {e}")
         else:
             st.error("Tidak ada indikator untuk diajukan.")
 
-    # Bagian untuk menampilkan status pengajuan MCS
-    st.subheader("Status Permintaan MCS")
+    # Bagian untuk menampilkan riwayat pengajuan MCS
+    st.subheader("Riwayat Pengajuan MCS")
 
-    # Ambil permintaan MCS berdasarkan proyek yang dipilih
+    # Ambil riwayat pengajuan MCS
     mcs_requests = get_mcs_requests_by_project(selected_project_id)
 
     if mcs_requests:
@@ -121,16 +106,7 @@ def project_pm_page():
                 mcs_id,
                 indicator,
                 uom,
-                level_1,
-                level_2,
-                level_3,
-                level_4,
-                level_5,
-                level_6,
-                level_7,
-                level_8,
-                level_9,
-                level_10,
+                target,
                 status,
                 rejection_message,
                 created_at,
@@ -142,121 +118,154 @@ def project_pm_page():
                     mcs_id,
                     indicator,
                     uom,
-                    level_1,
-                    level_2,
-                    level_3,
-                    level_4,
-                    level_5,
-                    level_6,
-                    level_7,
-                    level_8,
-                    level_9,
-                    level_10,
+                    target,
                     status,
-                    rejection_message,
+                    rejection_message if rejection_message else "-",  # Tampilkan "-" jika tidak ada rejection_message
                     created_at,
                     updated_at,
                 ]
             )
 
-        # Buat DataFrame untuk menampilkan permintaan
+        # Buat DataFrame untuk menampilkan riwayat
         request_df = pd.DataFrame(
             request_data,
             columns=[
                 "Request ID",
                 "Indicator",
                 "UOM",
-                "Level 1",
-                "Level 2",
-                "Level 3",
-                "Level 4",
-                "Level 5",
-                "Level 6",
-                "Level 7",
-                "Level 8",
-                "Level 9",
-                "Level 10",
+                "Target",
                 "Status",
                 "Rejection Message",
                 "Created At",
                 "Updated At",
             ],
         )
-        st.write("Riwayat Permintaan MCS Anda:")
+        st.write("Riwayat Pengajuan MCS Anda:")
         st.dataframe(request_df)
-    else:
-        st.write("Tidak ada permintaan MCS yang diajukan untuk proyek ini.")
 
-    # Bagian untuk menampilkan MCS yang sudah disetujui
-    st.subheader("MCS yang Sudah Disetujui")
+        # Bagian untuk mengedit MCS yang ditolak
+        st.subheader("Edit dan Ajukan Ulang MCS yang Ditolak")
+        rejected_mcs = [mcs for mcs in mcs_requests if mcs[4] == "Rejected"]
 
-    # Ambil data MCS yang sudah diapprove
-    approved_mcs = get_approved_mcs_by_project(selected_project_id)
-
-    if approved_mcs:
-        # Siapkan data untuk tabel
-        approved_data = []
-        for mcs in approved_mcs:
-            (
-                project_id,
-                indicator,
-                uom,
-                level_1,
-                level_2,
-                level_3,
-                level_4,
-                level_5,
-                level_6,
-                level_7,
-                level_8,
-                level_9,
-                level_10,
-                progress,
-                created_at,
-            ) = mcs
-
-            approved_data.append(
-                [
-                    project_id,
+        if rejected_mcs:
+            for mcs in rejected_mcs:
+                (
+                    mcs_id,
                     indicator,
                     uom,
-                    level_1,
-                    level_2,
-                    level_3,
-                    level_4,
-                    level_5,
-                    level_6,
-                    level_7,
-                    level_8,
-                    level_9,
-                    level_10,
-                    progress,
+                    target,
+                    status,
+                    rejection_message,
                     created_at,
+                    updated_at,
+                ) = mcs
+
+                with st.expander(f"Edit MCS: {indicator} (ID: {mcs_id})"):
+                    new_indicator = st.text_input(
+                        f"Indikator (ID: {mcs_id})", value=indicator
+                    )
+                    new_uom = st.text_input(f"UOM (ID: {mcs_id})", value=uom)
+                    new_target = st.number_input(
+                        f"Target (ID: {mcs_id})", min_value=0.0, value=target, format="%.2f"
+                    )
+
+                    if st.button(
+                        f"Ajukan Ulang (ID: {mcs_id})", key=f"resubmit_{mcs_id}"
+                    ):
+                        if new_indicator and new_uom and new_target > 0:
+                            try:
+                                if edit_mcs_request(
+                                    mcs_id, new_indicator, new_uom, new_target
+                                ):
+                                    st.success(
+                                        f"MCS untuk indikator '{new_indicator}' berhasil diajukan ulang."
+                                    )
+                                else:
+                                    st.error(
+                                        f"Gagal mengajukan ulang MCS untuk indikator '{new_indicator}'."
+                                    )
+                            except Exception as e:
+                                st.error(
+                                    f"Terjadi kesalahan saat mengajukan ulang MCS: {e}"
+                                )
+                        else:
+                            st.error("Semua field harus diisi dengan benar.")
+        else:
+            st.write("Tidak ada MCS yang ditolak untuk proyek ini.")
+    else:
+        st.write("Belum ada MCS yang diajukan.")
+
+    # Bagian untuk menampilkan MCS yang sudah diapprove
+    st.subheader("MCS yang Sudah Diapprove")
+
+    # Ambil data MCS yang statusnya "On Going"
+    ongoing_mcs = get_mcs_roi_by_status(selected_project_id, "On Going")
+
+    if ongoing_mcs:
+        # Tampilkan data On Going
+        ongoing_data = []
+        for mcs in ongoing_mcs:
+            (
+                mcs_id,
+                indicator,
+                uom,
+                target,
+                status,
+                created_at,
+                updated_at,
+            ) = mcs
+
+            ongoing_data.append(
+                [
+                    mcs_id,
+                    indicator,
+                    uom,
+                    target,
+                    status,
+                    created_at,
+                    updated_at,
                 ]
             )
 
-        # Buat DataFrame untuk menampilkan data
-        approved_df = pd.DataFrame(
-            approved_data,
+        ongoing_df = pd.DataFrame(
+            ongoing_data,
             columns=[
-                "Project ID",
+                "MCS ID",
                 "Indicator",
                 "UOM",
-                "Level 1",
-                "Level 2",
-                "Level 3",
-                "Level 4",
-                "Level 5",
-                "Level 6",
-                "Level 7",
-                "Level 8",
-                "Level 9",
-                "Level 10",
-                "Progress",
+                "Target",
+                "Status",
                 "Created At",
+                "Updated At",
             ],
         )
-        st.write("MCS yang sudah di-approve:")
-        st.dataframe(approved_df)
+        st.write("MCS dengan Status 'On Going':")
+        st.dataframe(ongoing_df)
+
+        # Tambahkan tombol Achieve untuk setiap indikator On Going
+        for mcs in ongoing_mcs:
+            (
+                mcs_id,
+                indicator,
+                uom,
+                target,
+                status,
+                created_at,
+                updated_at,
+            ) = mcs
+
+            if status == "On Going":
+                if st.button(f"Achieve (ID: {mcs_id})", key=f"achieve_{mcs_id}"):
+                    try:
+                        if achieve_mcs(mcs_id):
+                            st.success(
+                                f"MCS untuk indikator '{indicator}' berhasil diubah menjadi 'Achieved'."
+                            )
+                        else:
+                            st.error(
+                                f"Gagal mengubah status MCS untuk indikator '{indicator}'."
+                            )
+                    except Exception as e:
+                        st.error(f"Terjadi kesalahan saat mengubah status MCS: {e}")
     else:
-        st.write("Tidak ada MCS yang disetujui untuk proyek ini.")
+        st.write("Tidak ada MCS dengan status 'On Going'.")
