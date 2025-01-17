@@ -24,6 +24,9 @@ create_mcs_requests_table()
 
 
 def project_pd_page():
+    # Inisialisasi session state untuk processed_requests jika belum ada
+    if "processed_requests" not in st.session_state:
+        st.session_state["processed_requests"] = {}
     # Pastikan pengguna sudah login dan memiliki role 'PD'
     if "logged_in" in st.session_state and st.session_state["logged_in"]:
         user_role = st.session_state.get("role", "")

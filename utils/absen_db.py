@@ -1,6 +1,7 @@
 import mysql.connector
 import datetime
 
+from utils.mandays_conf_db import update_mandays_conf
 from utils.project_db import calculate_mandays_og
 
 # Fungsi untuk menghubungkan ke database
@@ -100,6 +101,7 @@ def save_check_in(name, selected_date, project_id):
         conn.commit()
 
         print(f"Check In berhasil untuk {name} pada tanggal {selected_date} dengan session ID {new_session_id}.")
+        update_mandays_conf()
     except Exception as e:
         print(f"Error saving check-in: {e}")
     finally:
@@ -131,6 +133,7 @@ def save_check_out(name, selected_date, project_id):
             # Hitung ulang mandays_og untuk proyek ini
             mandays_og = calculate_mandays_og(project_id)
             print(f"Mandays OG setelah Check Out: {mandays_og}")
+            update_mandays_conf()
         else:
             print(f"Check Out gagal: Anda mungkin sudah check-out sebelumnya.")
     except Exception as e:

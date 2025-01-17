@@ -3,7 +3,9 @@ import pandas as pd
 import streamlit as st
 
 # Import modul internal (utils)
-from utils.mcs_roi_db import get_mcs_roi_by_status, achieve_mcs
+from utils.actual_mcs_report_db import get_aktual_mcs_roi_report, get_target_from_mcs_roi, insert_or_update_aktual_mcs_roi_report
+from utils.mean_roi_week_conf_db import  check_existing_entry, get_mcs_roi_indicators, get_mean_roi_week_data, save_mean_roi_week
+
 from utils.mcs_req_db import (
     create_mcs_requests_table,
     get_mcs_requests_by_project,
@@ -195,119 +197,71 @@ def project_pm_page():
     else:
         st.write("Belum ada MCS yang diajukan.")
 
-    # Bagian untuk menampilkan MCS yang sudah diapprove
-    st.subheader("MCS yang Sudah Diapprove")
+    # Form Input Mean ROI Week
+    st.subheader("Input Data Mean ROI Week")
+    with st.form("input_mean_roi_week_form"):
+        # Ambil data indikator dari tabel `mcs_roi` berdasarkan proyek yang dipilih
+        indicators = get_mcs_roi_indicators(selected_project_id)
+        if indicators:
+            # Mapping nama indikator ke ID
+            indicator_map = {row[1]: row[0] for row in indicators}  # Nama ke ID
+            selected_indicator = st.selectbox("Pilih Indikator", list(indicator_map.keys()))
+            mcs_roi_id = indicator_map[selected_indicator]
 
-    # Ambil data MCS yang statusnya "On Going"
-    ongoing_mcs = get_mcs_roi_by_status(selected_project_id, "On Going")
-    achieved_mcs = get_mcs_roi_by_status(selected_project_id, "Achieved")  # Ambil data MCS yang statusnya 'Achieved'
+            bulan = st.number_input("Bulan", min_value=1, format="%d")
+            pekan = st.selectbox("Pekan", [1, 2, 3, 4])
+            nilai = st.number_input("Nilai (boleh negatif)", format="%.2f")
+        else:
+            st.warning(f"Tidak ada indikator untuk proyek {selected_project_name}.")
+            st.form_submit_button("Simpan Data")  # Tambahkan tombol kosong
+            st.stop()  # Hentikan eksekusi jika tidak ada indikator
 
-    # Tampilkan MCS dengan status "On Going"
-    if ongoing_mcs:
-        ongoing_data = []
-        for mcs in ongoing_mcs:
-            (
-                mcs_id,
-                indicator,
-                uom,
-                target,
-                status,
-                created_at,
-                updated_at,
-            ) = mcs
+        # Tombol submit untuk menyimpan data
+        submit_button = st.form_submit_button("Simpan Data")
 
-            ongoing_data.append(
-                [
-                    mcs_id,
-                    indicator,
-                    uom,
-                    target,
-                    status,
-                    created_at,
-                    updated_at,
-                ]
-            )
+        if submit_button:
+            # Validasi data
+            if check_existing_entry(mcs_roi_id, bulan, pekan):
+                st.error(f"Data untuk Bulan {bulan} dan Pekan {pekan} sudah ada. Tidak bisa menyimpan.")
+            else:
+                # Simpan data ke Mean ROI Week
+                if save_mean_roi_week(mcs_roi_id, bulan, pekan, nilai):
+                    st.success("Data berhasil disimpan ke Mean ROI Week.")
 
-        ongoing_df = pd.DataFrame(
-            ongoing_data,
-            columns=[
-                "MCS ID",
-                "Indicator",
-                "UOM",
-                "Target",
-                "Status",
-                "Created At",
-                "Updated At",
-            ],
-        )
-        st.write("MCS dengan Status 'On Going':")
-        st.dataframe(ongoing_df)
+                    # Update ke tabel aktual_mcs_roi_report
+                    target = get_target_from_mcs_roi(mcs_roi_id)  # Ambil target dari tabel mcs_roi
+                    if insert_or_update_aktual_mcs_roi_report(mcs_roi_id, bulan, target):
+                        st.success("Data berhasil diperbarui di Aktual MCS ROI Report.")
+                    else:
+                        st.error("Gagal memperbarui data di Aktual MCS ROI Report.")
+                else:
+                    st.error("Gagal menyimpan data ke Mean ROI Week.")
 
-        # Tambahkan tombol Achieve untuk setiap indikator On Going
-        for mcs in ongoing_mcs:
-            (
-                mcs_id,
-                indicator,
-                uom,
-                target,
-                status,
-                created_at,
-                updated_at,
-            ) = mcs
+    # Dropdown untuk memilih indikator yang ingin ditampilkan di tabel
+    st.subheader("Tabel Aktual MCS ROI Report")
+    indicators = get_mcs_roi_indicators(selected_project_id)
+    indicator_options = ["Semua"] + [row[1] for row in indicators]  # Tambahkan "Semua" ke opsi dropdown
+    selected_indicator = st.selectbox("Pilih Indikator untuk Ditampilkan", indicator_options)
 
-            if status == "On Going":
-                if st.button(f"Achieve (ID: {mcs_id})", key=f"achieve_{mcs_id}"):
-                    try:
-                        if achieve_mcs(mcs_id):
-                            st.success(
-                                f"MCS untuk indikator '{indicator}' berhasil diubah menjadi 'Achieved'."
-                            )
-                        else:
-                            st.error(
-                                f"Gagal mengubah status MCS untuk indikator '{indicator}'."
-                            )
-                    except Exception as e:
-                        st.error(f"Terjadi kesalahan saat mengubah status MCS: {e}")
+    # Menampilkan tabel Aktual MCS ROI Report berdasarkan indikator yang dipilih
+    if selected_indicator == "Semua":
+        # Tampilkan semua data jika "Semua" dipilih
+        aktual_data = get_aktual_mcs_roi_report()
     else:
-        st.write("Tidak ada MCS dengan status 'On Going'.")
+        # Tampilkan hanya data untuk indikator yang dipilih
+        aktual_data = [
+            row for row in get_aktual_mcs_roi_report() if row[0] == selected_indicator
+        ]
 
-    # Tampilkan MCS dengan status "Achieved"
-    if achieved_mcs:
-        achieved_data = []
-        for mcs in achieved_mcs:
-            (
-                mcs_id,
-                indicator,
-                target,
-                uom,
-                status,
-                created_at,
-                updated_at,
-            ) = mcs
-
-            achieved_data.append(
-                [
-                    indicator,
-                    uom,
-                    target,
-                    status,
-                    created_at,
-                    updated_at,
-                ]
-            )
-
-        achieved_df = pd.DataFrame(
-            achieved_data,
-            columns=[
-                "Indicator",
-                "Target",
-                "UOM",
-                "Status",
-                "Created At",
-                "Updated At",
-            ],
+    if aktual_data:
+        # Buat DataFrame untuk menampilkan data
+        df = pd.DataFrame(
+            aktual_data,
+            columns=["Indicator", "Bulan", "M1", "M2", "M3", "M4", "Target", "Rata-Rata", "UOM"]
         )
-        st.write("MCS dengan Status 'Achieved':")
-        st.dataframe(achieved_df)
+        st.dataframe(df)
     else:
-        st.write("Tidak ada MCS dengan status 'Achieved'.")
+        if selected_indicator == "Semua":
+            st.write("Belum ada data di tabel Aktual MCS ROI Report.")
+        else:
+            st.write(f"Belum ada data di tabel Aktual MCS ROI Report untuk indikator {selected_indicator}.")

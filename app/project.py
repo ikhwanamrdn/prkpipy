@@ -6,6 +6,8 @@ import pandas as pd
 import streamlit as st
 
 # Import modul internal (utils)
+from utils.mandays_conf_db import get_mandays_conf_by_project
+from utils.mcs_roi_db import get_mcs_roi_by_project, get_progress_data
 from utils.project_db import (
     create_projects_table,
     get_connection,
@@ -126,7 +128,6 @@ def project_page():
             else:
                 st.error("Semua field harus diisi.")
 
-    # Toggle daftar proyek
     if 'show_project_list' not in st.session_state:
         st.session_state['show_project_list'] = False
 
@@ -154,97 +155,146 @@ def project_page():
                     roi_percent = project[10] if project[10] is not None else 0
                     roi_idr = f"{project[11]:,}" if project[11] is not None else "0"
 
+                    # Ambil nama ME
                     me_names = get_assigned_mes(project_id)
                     me_names_str = ', '.join(me_names) if me_names else "Belum ada ME"
 
+                    # Ambil bulan_berjalan dari tabel mandays_conf
+                    mandays_conf_data = get_mandays_conf_by_project(project_id)
+                    bulan_berjalan = mandays_conf_data["bulan_berjalan"] if mandays_conf_data else 0
+
+                    # Hitung Anggaran Mandays OG
+                    anggaran_mandays_og = anggaran_mandays * bulan_berjalan
+
                     project_data.append([
                         project_id, project_name, pd_name, anggaran_mandays, start_date, end_date,
-                        pm_name, mandays_og, project_type, nilai_kontrak, roi_percent, roi_idr, me_names_str
+                        pm_name, mandays_og, project_type, nilai_kontrak, roi_percent, roi_idr,
+                        me_names_str, bulan_berjalan, anggaran_mandays_og
                     ])
 
                 except Exception as e:
                     st.error(f"Terjadi kesalahan saat memproses data proyek: {e}")
                     continue
 
+            # Tambahkan kolom baru untuk Anggaran Mandays OG
             project_df = pd.DataFrame(project_data, columns=[
                 "ID", "Project Name", "PD", "Anggaran Mandays", "Start Date", "End Date",
-                "PM", "Mandays OG", "Project Type", "Nilai Kontrak (IDR)", "ROI (%)", "ROI (IDR)", "ME"
+                "PM", "Mandays OG", "Project Type", "Nilai Kontrak (IDR)", "ROI (%)", "ROI (IDR)", "ME",
+                "Bulan Berjalan", "Anggaran Mandays OG"
             ])
 
             st.write("Aktivitas Proyek yang Tersedia:")
             st.dataframe(project_df)
 
-
             if 'show_edit_form' not in st.session_state:
                 st.session_state['show_edit_form'] = False
 
-            if st.button("Edit Project"):
-                st.session_state['show_edit_form'] = not st.session_state['show_edit_form']
+        if st.button("Edit Project"):
+            st.session_state['show_edit_form'] = not st.session_state.get('show_edit_form', False)
 
-            if st.session_state['show_edit_form']:
-                selected_project_id = st.selectbox("Pilih Proyek untuk Edit", [project[0] for project in projects], key="edit_project_selectbox")
+        if st.session_state.get('show_edit_form', False):
+            # Dropdown untuk memilih proyek yang akan diedit
+            selected_project_id = st.selectbox(
+                "Pilih Proyek untuk Edit", 
+                [project[0] for project in projects], 
+                key="edit_project_selectbox"
+            )
 
-                selected_project = next((project for project in projects if project[0] == selected_project_id), None)
+            # Mendapatkan detail proyek yang dipilih
+            selected_project = next((project for project in projects if project[0] == selected_project_id), None)
 
-                if selected_project:
-                    project_name_edit = st.text_input("Nama Project", selected_project[1], key="edit_project_name")
-                    pd_name_edit = st.selectbox("Nama PD (Project Director)", [selected_project[2]], key="edit_pd_name")
-                    anggaran_mandays_edit = st.number_input(
-                        "Anggaran Mandays",
-                        min_value=1,
-                        value=int(selected_project[3]) if isinstance(selected_project[3], (int, float)) else 1,  # Periksa tipe data numerik
-                        key="edit_anggaran_mandays"
-                    )
+            if selected_project:
+                # Field untuk mengedit nama proyek
+                project_name_edit = st.text_input(
+                    "Nama Project", 
+                    selected_project[1], 
+                    key="edit_project_name"
+                )
 
-                    pm_users = get_users_by_role('PM')
-                    me_users = get_users_by_role('ME')
+                # Dropdown untuk memilih PD (Project Director)
+                pd_users = get_users_by_role("PD")
+                pd_names = [pd["name"] for pd in pd_users]
+                pd_name_edit = st.selectbox(
+                    "Nama PD (Project Director)", 
+                    pd_names, 
+                    index=pd_names.index(selected_project[2]) if selected_project[2] in pd_names else 0, 
+                    key="edit_pd_name"
+                )
 
-                    selected_pm_index = pm_users.index(selected_project[6]) if selected_project[6] in pm_users else 0
-                    selected_pm = st.selectbox("Pilih Project Manager (PM)", pm_users, index=selected_pm_index, key="edit_pm_selectbox")
+                # Field untuk mengedit anggaran mandays
+                anggaran_mandays_edit = st.number_input(
+                    "Anggaran Mandays",
+                    min_value=1,
+                    value=int(selected_project[3]) if isinstance(selected_project[3], (int, float)) else 1,  # Periksa tipe data numerik
+                    key="edit_anggaran_mandays"
+                )
 
-                    st.subheader("Pilih Manager Engineer (ME) untuk Project")
-                    assigned_mes = get_assigned_mes(selected_project[0])
-                    selected_me = st.selectbox("Tambah ME", me_users, index=0, key="edit_me_selectbox")
-                    add_me_button, remove_me_button = st.columns(2)
+                # Dropdown untuk memilih PM (Project Manager)
+                pm_users = get_users_by_role("PM")
+                pm_names = [pm["name"] for pm in pm_users]
+                selected_pm = st.selectbox(
+                    "Pilih Project Manager (PM)", 
+                    pm_names, 
+                    index=pm_names.index(selected_project[6]) if selected_project[6] in pm_names else 0, 
+                    key="edit_pm_selectbox"
+                )
 
-                    with add_me_button:
-                        if st.button("Tambah ME ke Project"):
-                            if selected_me:
-                                try:
-                                    assign_me_to_project(selected_project[0], selected_me)
-                                    st.success(f"ME {selected_me} berhasil ditambahkan ke proyek {selected_project[1]}.")
-                                except Exception as e:
-                                    st.error(f"Error adding ME: {e}")
+                # Bagian untuk mengelola ME (Manager Engineer)
+                st.subheader("Pilih Manager Engineer (ME) untuk Project")
+                me_users = get_users_by_role("ME")
+                me_names = [me["name"] for me in me_users]
+                assigned_mes = get_assigned_mes(selected_project[0])
+                selected_me = st.selectbox(
+                    "Tambah ME", 
+                    me_names, 
+                    index=0, 
+                    key="edit_me_selectbox"
+                )
 
-                    with remove_me_button:
-                        if st.button("Hapus ME dari Project"):
-                            if selected_me in assigned_mes:
-                                try:
-                                    remove_me_from_project(selected_project[0], selected_me)
-                                    st.success(f"ME {selected_me} berhasil dihapus dari proyek {selected_project[1]}.")
-                                except Exception as e:
-                                    st.error(f"Error removing ME: {e}")
-                            else:
-                                st.error(f"ME {selected_me} tidak terdaftar di proyek ini.")
+                add_me_button, remove_me_button = st.columns(2)
 
-                    if st.button("Update Project"):
-                        if project_name_edit and pd_name_edit:
+                # Tombol untuk menambahkan ME ke proyek
+                with add_me_button:
+                    if st.button("Tambah ME ke Project"):
+                        if selected_me:
                             try:
-                                update_project_data(
-                                    selected_project[0],  # project_id
-                                    project_name_edit,    # project_name
-                                    pd_name_edit,         # pd_name
-                                    anggaran_mandays_edit,# anggaran_mandays
-                                    selected_project[4],  # start_date
-                                    selected_project[5]   # end_date
-                                )
-                                assign_pm_to_project(selected_project[0], selected_pm)
-                                st.success(f"Project '{project_name_edit}' berhasil diperbarui dengan PM '{selected_pm}'!")
+                                assign_me_to_project(selected_project[0], selected_me)
+                                st.success(f"ME {selected_me} berhasil ditambahkan ke proyek {selected_project[1]}.")
                             except Exception as e:
-                                st.error(f"Gagal memperbarui proyek: {e}")
+                                st.error(f"Error adding ME: {e}")
+
+                # Tombol untuk menghapus ME dari proyek
+                with remove_me_button:
+                    if st.button("Hapus ME dari Project"):
+                        if selected_me in assigned_mes:
+                            try:
+                                remove_me_from_project(selected_project[0], selected_me)
+                                st.success(f"ME {selected_me} berhasil dihapus dari proyek {selected_project[1]}.")
+                            except Exception as e:
+                                st.error(f"Error removing ME: {e}")
                         else:
-                            st.error("Semua field harus diisi.")
-                else:
-                    st.error("Proyek yang dipilih tidak ditemukan.")
+                            st.error(f"ME {selected_me} tidak terdaftar di proyek ini.")
+
+                # Tombol untuk memperbarui proyek
+                if st.button("Update Project"):
+                    if project_name_edit and pd_name_edit:
+                        try:
+                            update_project_data(
+                                selected_project[0],  # project_id
+                                project_name_edit,    # project_name
+                                pd_name_edit,         # pd_name
+                                anggaran_mandays_edit, # anggaran_mandays
+                                selected_project[4],  # start_date
+                                selected_project[5]   # end_date
+                            )
+                            assign_pm_to_project(selected_project[0], selected_pm)
+                            st.success(f"Project '{project_name_edit}' berhasil diperbarui dengan PM '{selected_pm}'!")
+                        except Exception as e:
+                            st.error(f"Gagal memperbarui proyek: {e}")
+                    else:
+                        st.error("Semua field harus diisi.")
+            else:
+                st.error("Proyek yang dipilih tidak ditemukan.")
+
     else:
         st.write("Tidak ada project yang ditemukan.")

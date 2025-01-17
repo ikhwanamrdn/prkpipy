@@ -273,8 +273,8 @@ def get_approved_mcs_by_project(project_id):
         query = """
             SELECT project_id, indicator, uom, target, created_at, updated_at
             FROM mcs_roi
-            WHERE project_id = %s
-        """
+            WHERE project_id = %s AND status = 'Approved'
+        """  # Pastikan status = 'Approved'
         cursor.execute(query, (project_id,))
         results = cursor.fetchall()
         return results

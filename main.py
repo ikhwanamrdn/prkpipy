@@ -6,10 +6,13 @@ from app.project import project_page  # DirOps project management page
 from app.project_pd import project_pd_page  # PD project management page
 from app.project_pm import project_pm_page  # PM project management page
 from app.kpi_pd import kpi_pd_page  # KPI PD management page
+from utils.actual_mcs_report_db import create_aktual_mcs_roi_report_table
 from utils.mcs_roi_db import create_mcs_roi_table
 from utils.pm_req_db import create_pm_requests_table
 from utils.project_db import create_projects_table  # Import create_projects_table function
 from utils.kpi_pd_db import create_kpi_pd_table  # Import create_kpi_pd_table function
+from utils.mandays_conf_db import create_mandays_conf_table
+from utils.mean_roi_week_conf_db import create_mean_roi_week_table
 
 def main():
     if 'logged_in' not in st.session_state:
@@ -21,7 +24,10 @@ def main():
     create_projects_table()
 
     # Lalu buat tabel yang bergantung pada tabel projects
+    create_mandays_conf_table()
     create_mcs_roi_table()
+    create_mean_roi_week_table()
+    create_aktual_mcs_roi_report_table()
     create_pm_requests_table()
     create_kpi_pd_table()
 

@@ -1,4 +1,5 @@
 import mysql.connector
+import pandas as pd
 from db.connection import get_connection
 
 def create_mcs_roi_table():
@@ -101,3 +102,89 @@ def achieve_mcs(mcs_id):
     finally:
         cursor.close()
         conn.close()
+
+def get_valid_mcs_roi(project_id):
+    """
+    Mengambil data MCS ROI yang valid (status 'On Going') berdasarkan project_id.
+
+    Args:
+        project_id (str): ID proyek.
+
+    Returns:
+        list of tuple: Data MCS ROI dengan status 'On Going'.
+    """
+    return get_mcs_roi_by_status(project_id, "On Going")
+
+def get_mcs_roi_by_project(project_id):
+    """
+    Mengambil daftar MCS ROI berdasarkan proyek.
+    """
+    conn = get_connection()
+    query = """
+        SELECT id, indicator
+        FROM mcs_roi
+        WHERE project_id = %s
+    """
+    return pd.read_sql(query, conn, params=(project_id,))
+
+def get_progress_data(mcs_roi_id=None, project_id=None):
+    """
+    Mengambil data progres dari mean_roi_week.
+    """
+    conn = get_connection()
+    if mcs_roi_id:  # Filter berdasarkan MCS ROI
+        query = """
+            SELECT 
+                mcs.indicator, 
+                mrw.bulan, 
+                MAX(CASE WHEN mrw.pekan = 1 THEN mrw.nilai END) AS m1,
+                MAX(CASE WHEN mrw.pekan = 2 THEN mrw.nilai END) AS m2,
+                MAX(CASE WHEN mrw.pekan = 3 THEN mrw.nilai END) AS m3,
+                MAX(CASE WHEN mrw.pekan = 4 THEN mrw.nilai END) AS m4,
+                mcs.target,
+                mrw.rata_rata,
+                mcs.uom,
+                MAX(mrw.created_at) AS updated_at
+            FROM mean_roi_week mrw
+            JOIN mcs_roi mcs ON mrw.mcs_roi_id = mcs.id
+            WHERE mcs.id = %s
+            GROUP BY mcs.indicator, mrw.bulan, mcs.target, mrw.rata_rata, mcs.uom
+        """
+        return pd.read_sql(query, conn, params=(mcs_roi_id,))
+    elif project_id:  # Filter berdasarkan proyek
+        query = """
+            SELECT 
+                mcs.indicator, 
+                mrw.bulan, 
+                MAX(CASE WHEN mrw.pekan = 1 THEN mrw.nilai END) AS m1,
+                MAX(CASE WHEN mrw.pekan = 2 THEN mrw.nilai END) AS m2,
+                MAX(CASE WHEN mrw.pekan = 3 THEN mrw.nilai END) AS m3,
+                MAX(CASE WHEN mrw.pekan = 4 THEN mrw.nilai END) AS m4,
+                mcs.target,
+                mrw.rata_rata,
+                mcs.uom,
+                MAX(mrw.created_at) AS updated_at
+            FROM mean_roi_week mrw
+            JOIN mcs_roi mcs ON mrw.mcs_roi_id = mcs.id
+            WHERE mcs.project_id = %s
+            GROUP BY mcs.indicator, mrw.bulan, mcs.target, mrw.rata_rata, mcs.uom
+        """
+        return pd.read_sql(query, conn, params=(project_id,))
+    else:  # Tampilkan semua data
+        query = """
+            SELECT 
+                mcs.indicator, 
+                mrw.bulan, 
+                MAX(CASE WHEN mrw.pekan = 1 THEN mrw.nilai END) AS m1,
+                MAX(CASE WHEN mrw.pekan = 2 THEN mrw.nilai END) AS m2,
+                MAX(CASE WHEN mrw.pekan = 3 THEN mrw.nilai END) AS m3,
+                MAX(CASE WHEN mrw.pekan = 4 THEN mrw.nilai END) AS m4,
+                mcs.target,
+                mrw.rata_rata,
+                mcs.uom,
+                MAX(mrw.created_at) AS updated_at
+            FROM mean_roi_week mrw
+            JOIN mcs_roi mcs ON mrw.mcs_roi_id = mcs.id
+            GROUP BY mcs.indicator, mrw.bulan, mcs.target, mrw.rata_rata, mcs.uom
+        """
+        return pd.read_sql(query, conn)
