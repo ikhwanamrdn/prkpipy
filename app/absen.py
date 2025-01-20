@@ -1,63 +1,85 @@
 import streamlit as st
-import pandas as pd
-from utils.absen_db import create_absen_table, save_check_in, save_check_out, is_absen_exists
-from utils.project_db import get_projects_by_role  # Fungsi untuk mengambil proyek berdasarkan role
-import datetime  # Impor modul datetime
+from config.absen_config import save_absen
+from config.project_config import get_all_locations, get_projects_by_location
+import datetime
+from db.connection import get_connection
 
 def absen_page():
-    # Pastikan tabel absen dibuat sebelum melanjutkan
-    create_absen_table()
-
-    # Halaman absen
     st.title("Halaman Absen Karyawan")
 
-    # Periksa peran pengguna
-    user_role = st.session_state.get('role', 'Unknown')
-    if user_role not in ['DirOps', 'PM', 'PD', 'ME']:
-        st.warning("Anda tidak memiliki akses untuk melakukan absen.")
+    # Validasi apakah pengguna sudah login
+    if 'logged_in' not in st.session_state or not st.session_state['logged_in']:
+        st.warning("Silakan login terlebih dahulu untuk mengakses halaman ini.")
         return
 
-    # Pilih tanggal absen tanpa default ke tanggal saat ini
-    selected_date = st.date_input("Pilih Tanggal Absen")
-    selected_date_str = selected_date.strftime('%Y-%m-%d') if selected_date else None  # Pastikan format tanggal sesuai SQL
-    name = st.session_state.get('name', 'Unknown User')
+    # Ambil employee_id dari sesi login
+    employee_id = st.session_state.get('employee_id')
 
-    if not selected_date:
-        st.warning("Silakan pilih tanggal untuk melanjutkan.")
-        return
+    # Dropdown untuk lokasi training (wajib dipilih)
+    locations = get_all_locations()
+    location_options = [(loc['id'], loc['name']) for loc in locations]
 
-    # Mendapatkan daftar proyek yang ditugaskan kepada pengguna sesuai dengan peran
-    projects = get_projects_by_role(name, user_role)  # Fungsi untuk mengambil proyek berdasarkan role
+    if location_options:
+        selected_location = st.selectbox(
+            "Pilih Lokasi Training (Wajib)",
+            location_options,
+            format_func=lambda x: x[1]
+        )
+        selected_location_id = selected_location[0]
+    else:
+        st.warning("Tidak ada lokasi training yang tersedia.")
+        return  # Tidak bisa melanjutkan tanpa lokasi training
 
-    # Jika tidak ada proyek yang ditugaskan
-    if not projects:
-        st.warning(f"Tidak ada proyek yang ditugaskan kepada Anda pada tanggal {selected_date_str}.")
-        return
+    # Dropdown untuk ID training (opsional)
+    project_ids = get_projects_by_location(selected_location_id)
+    if project_ids:
+        selected_project_id = st.selectbox(
+            "Pilih Nama Training (Opsional)",
+            [None] + [proj['id'] for proj in project_ids],
+            format_func=lambda x: x if x else "Belum Memilih Nama Training"
+        )
+    else:
+        st.info("Lokasi ini belum memiliki project terdaftar. Anda tetap dapat melakukan absen.")
+        selected_project_id = None  # Tidak ada training yang tersedia
 
-    # Menampilkan dropdown proyek dengan nama proyek yang tersedia
-    project_names = [project[1] for project in projects]  # Ambil nama proyek dari hasil query
-    project_ids = [project[0] for project in projects]  # Ambil ID proyek yang terkait
+    # Date input untuk memilih tanggal absen
+    selected_date = st.date_input("Pilih Tanggal Absen", datetime.date.today())
+    selected_date_str = selected_date.strftime("%d-%m-%Y")
 
-    selected_project_name = st.selectbox("Pilih Proyek Anda", project_names)
-    selected_project_id = project_ids[project_names.index(selected_project_name)]  # Ambil project_id berdasarkan nama yang dipilih
-
-    # Memeriksa jika proyek yang dipilih sesuai dengan yang telah ditugaskan
-    if selected_project_id not in [project[0] for project in projects]:
-        st.error(f"Anda tidak ditugaskan ke proyek {selected_project_name} pada tanggal {selected_date_str}. Tidak bisa melakukan absen di proyek ini.")
-        return
-
-    # Menampilkan tombol Check-In dan Check-Out
+    # Check In button
     if st.button("Check In"):
-        if is_absen_exists(name, selected_date_str, selected_project_id):
-            st.warning(f"Anda sudah check-in pada tanggal {selected_date_str} untuk proyek {selected_project_name}. Tidak bisa check-in lagi.")
+        if employee_id and selected_location_id:  # Lokasi wajib dipilih
+            current_time = datetime.datetime.now().strftime("%H:%M:%S")
+            success, message = save_absen(
+                employee_id=employee_id,
+                present_id=1,
+                location_id=selected_location_id,  # Lokasi tetap dicatat
+                training_name=selected_project_id,  # Nama training opsional
+                presence_date=selected_date,
+                time_in=current_time
+            )
+            if success:
+                st.success(message)
+            else:
+                st.error(message)
         else:
-            save_check_in(name, selected_date_str, selected_project_id)
-            st.success(f"Check In berhasil pada {selected_date_str} untuk proyek {selected_project_name}")
+            st.warning("Silakan pilih lokasi training untuk melakukan Check In.")
 
+    # Check Out button
     if st.button("Check Out"):
-        if not is_absen_exists(name, selected_date_str, selected_project_id):
-            st.warning(f"Belum ada check-in pada tanggal {selected_date_str} untuk proyek {selected_project_name}. Tidak bisa check-out.")
+        if employee_id and selected_location_id:
+            current_time = datetime.datetime.now().strftime("%H:%M:%S")
+            success, message = save_absen(
+                employee_id=employee_id,
+                present_id=2,
+                location_id=selected_location_id,  # Lokasi tetap dicatat
+                training_name=selected_project_id,  # Nama training opsional
+                presence_date=selected_date,
+                time_out=current_time
+            )
+            if success:
+                st.success("Check Out berhasil")  # Hanya tampilkan pesan "Check Out berhasil"
+            else:
+                st.error(message)
         else:
-            save_check_out(name, selected_date_str, selected_project_id)
-            st.success(f"Check Out berhasil pada {selected_date_str} untuk proyek {selected_project_name}")
-
+            st.warning("Silakan pilih lokasi training untuk melakukan Check Out.")

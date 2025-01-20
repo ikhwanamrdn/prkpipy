@@ -1,88 +1,130 @@
 import streamlit as st
-from app.login import login_page
-from app.dashboard import dashboard_page
+from app.login_register import login_page
 from app.absen import absen_page
-from app.project import project_page  # DirOps project management page
-from app.project_pd import project_pd_page  # PD project management page
-from app.project_pm import project_pm_page  # PM project management page
-from app.kpi_pd import kpi_pd_page  # KPI PD management page
-from utils.actual_mcs_report_db import create_aktual_mcs_roi_report_table
-from utils.mcs_roi_db import create_mcs_roi_table
-from utils.pm_req_db import create_pm_requests_table
-from utils.project_db import create_projects_table  # Import create_projects_table function
-from utils.kpi_pd_db import create_kpi_pd_table  # Import create_kpi_pd_table function
-from utils.mandays_conf_db import create_mandays_conf_table
-from utils.mean_roi_week_conf_db import create_mean_roi_week_table
+from app.project import project_page
+from app.kelola_project import kelola_project_page
+from app.project_pd import project_pd_page  # Import halaman Project (PD)
 
 def main():
+    # Inisialisasi session state
     if 'logged_in' not in st.session_state:
         st.session_state['logged_in'] = False
         st.session_state['page'] = "login"
-        st.session_state['role'] = None  # Tambahkan peran default None
+        st.session_state['name'] = None
+        st.session_state['role'] = None  # Default None untuk role
 
-    # Pastikan tabel projects dibuat terlebih dahulu
-    create_projects_table()
+    # Jika pengguna belum login, tampilkan halaman login
+    if not st.session_state['logged_in']:
+        login_page()
+    else:
+        # Jika sudah login, tampilkan sidebar dan halaman utama
+        st.sidebar.markdown(f"""
+        <style>
+        .sidebar-container {{
+            padding: 0;
+            margin: 0;
+            width: 100%;
+            background-color: transparent;
+        }}
+        .menu-item {{
+            text-align: center;
+            padding: 20px 0;
+            font-size: 18px;
+            font-weight: bold;
+            color: #ecf0f1;
+            text-decoration: none;
+            display: block;
+            cursor: pointer;
+        }}
+        .menu-item:hover {{
+            color: #3498db;
+        }}
+        .menu-item.active {{
+            color: #3498db;
+            border-left: 5px solid #3498db;
+            background-color: #34495e;
+        }}
+        </style>
+        """, unsafe_allow_html=True)
 
-    # Lalu buat tabel yang bergantung pada tabel projects
-    create_mandays_conf_table()
-    create_mcs_roi_table()
-    create_mean_roi_week_table()
-    create_aktual_mcs_roi_report_table()
-    create_pm_requests_table()
-    create_kpi_pd_table()
+        # Custom CSS for sidebar buttons
+        st.markdown(
+            """
+            <style>
+            .stButton>button {
+                width: 100%;
+                text-align: center;
+                padding: 10px 0;
+                font-size: 16px;
+                font-weight: bold;
+                color: #ecf0f1;
+                background-color: transparent;
+                border: none;
+                cursor: pointer;
+                margin: 2px auto;
+                transition: background-color 0.3s, color 0.3s;
+            }
+            .stButton>button:hover {
+                color: #3498db;
+                background-color: #34495e;
+            }
+            .stButton>button:focus {
+                outline: none;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
 
-    # Use st.query_params to get the page (defaults to "login")
-    page = st.query_params.get("page", ["login"])[0]
+        # Sidebar menu with Streamlit buttons
+        if st.sidebar.button('Absen'):
+            st.session_state['page'] = 'absen'
+            st.rerun()
 
-    # Check if the user is logged in
-    if st.session_state['logged_in']:
-        # Filter menu berdasarkan peran pengguna
-        menu_options = ["Dashboard", "Absen"]
-        role = st.session_state.get('role')
+        # Hanya DirOps yang dapat melihat menu Project (DirOps)
+        if st.session_state['role'] == 14:  # Role 14 untuk DirOps
+            if st.sidebar.button('Project (DirOps)'):
+                st.session_state['page'] = 'project'
+                st.rerun()
 
-        if role == "DirOps":
-            menu_options.append("Project (DirOps)")
-        if role == "PD":
-            menu_options.extend(["Project (PD)", "KPI (PD)"])
-        if role == "PM":
-            menu_options.append("Project (PM)")
+        # Hanya Project Director yang dapat melihat menu Project (PD)
+        if st.session_state['role'] == 17:  # Role 16 untuk Project Director
+            if st.sidebar.button('Project (PD)'):
+                st.session_state['page'] = 'project_pd'
+                st.rerun()
 
-        # Tampilkan menu di sidebar
-        menu = st.sidebar.radio("Pilih Halaman", menu_options)
+        # Hanya DirOps yang dapat mengakses Kelola Project
+        if st.session_state['role'] == 14:
+            if st.sidebar.button('Kelola Project'):
+                st.session_state['page'] = 'kelola_project'
+                st.rerun()
 
-        # Tentukan halaman berdasarkan pilihan menu
-        if menu == "Dashboard":
-            st.session_state['page'] = "dashboard"
-        elif menu == "Absen":
-            st.session_state['page'] = "absen"
-        elif menu == "Project (DirOps)":
-            st.session_state['page'] = "project"
-        elif menu == "Project (PD)":
-            st.session_state['page'] = "project_pd"
-        elif menu == "Project (PM)":
-            st.session_state['page'] = "project_pm"
-        elif menu == "KPI (PD)":
-            st.session_state['page'] = "kpi_pd"
+        # Tombol Logout
+        if st.sidebar.button('Logout'):
+            st.session_state.clear()
+            st.rerun()
 
-        # Tampilkan halaman sesuai pilihan
-        if st.session_state['page'] == "dashboard":
-            dashboard_page()
+        # Navigasi berdasarkan session state
+        if st.session_state['page'] == "logout":
+            st.session_state.clear()
+            st.rerun()
         elif st.session_state['page'] == "absen":
             absen_page()
-        elif st.session_state['page'] == "project" and role == "DirOps":
-            project_page()  # DirOps can manage projects here
-        elif st.session_state['page'] == "project_pd" and role == "PD":
-            project_pd_page()  # PD can manage projects here
-        elif st.session_state['page'] == "project_pm" and role == "PM":
-            project_pm_page()  # PM can manage project assignments here
-        elif st.session_state['page'] == "kpi_pd" and role == "PD":
-            kpi_pd_page()  # PD can manage KPI here
-        else:
-            st.warning("Anda tidak memiliki akses ke halaman ini.")
-    
-    else:
-        # Show login page if the user is not logged in
-        login_page()
+        elif st.session_state['page'] == "project":
+            if st.session_state['role'] == 14:  # Validasi tambahan untuk DirOps
+                project_page()
+            else:
+                st.error("Anda tidak memiliki akses ke halaman ini.")
+        elif st.session_state['page'] == "project_pd":
+            if st.session_state['role'] == 17:  # Validasi tambahan untuk Project Director
+                project_pd_page()
+            else:
+                st.error("Anda tidak memiliki akses ke halaman ini.")
+        elif st.session_state['page'] == "kelola_project":
+            if st.session_state['role'] == 14:  # Validasi tambahan untuk DirOps
+                kelola_project_page()
+            else:
+                st.error("Anda tidak memiliki akses ke halaman ini.")
 
 if __name__ == "__main__":
     main()
